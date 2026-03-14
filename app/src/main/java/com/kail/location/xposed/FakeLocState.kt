@@ -35,6 +35,8 @@ internal object FakeLocState {
         stepEnabledRef.set(enabled)
     }
 
+    fun isStepEnabled(): Boolean = stepEnabledRef.get()
+
     fun setStepCadence(cadence: Float) {
         stepCadenceRef.set(cadence)
     }

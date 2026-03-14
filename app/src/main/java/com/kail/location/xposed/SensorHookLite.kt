@@ -42,7 +42,7 @@ internal object SensorHookLite {
             var counter = 0f
             while (true) {
                 try {
-                    if (!FakeLocState.isEnabled()) {
+                    if (!FakeLocState.isEnabled() || !FakeLocState.isStepEnabled()) {
                         Thread.sleep(200)
                         continue
                     }

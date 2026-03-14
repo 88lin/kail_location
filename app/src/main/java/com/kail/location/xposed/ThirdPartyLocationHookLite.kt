@@ -3,6 +3,7 @@ package com.kail.location.xposed
 import android.location.Location
 import android.location.LocationListener
 import android.os.Bundle
+import com.kail.location.utils.KailLog
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
@@ -27,7 +28,7 @@ internal object ThirdPartyLocationHookLite {
                 if (!FakeLocState.isEnabled()) return
                 val cmd = param.args.getOrNull(0) as? String
                 val extras = param.args.getOrNull(1) as? Bundle
-                XposedBridge.log("KAIL_XPOSED: 高德 onSendExtraCommand 命令=$cmd 附加=$extras")
+                KailLog.d(null, "XPOSED", "高德 onSendExtraCommand 命令=$cmd 附加=$extras", isHighFrequency = true)
                 param.result = false
             }
         })
@@ -82,7 +83,7 @@ internal object ThirdPartyLocationHookLite {
                     XposedHelpers.callMethod(bdLoc, "setLongitude", loc.longitude)
                     XposedHelpers.callMethod(bdLoc, "setBuildingID", "")
                     XposedHelpers.callMethod(bdLoc, "setAddrStr", "")
-                    XposedBridge.log("KAIL_XPOSED: 百度 requestNLPNormal 注入位置 纬度=${loc.latitude} 经度=${loc.longitude}")
+                    KailLog.d(null, "XPOSED", "百度 requestNLPNormal 注入位置 纬度=${loc.latitude} 经度=${loc.longitude}", isHighFrequency = true)
                 }
             }
         })

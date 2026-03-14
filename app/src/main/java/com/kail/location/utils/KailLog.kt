@@ -35,7 +35,7 @@ object KailLog {
         // 尝试解析 Context，如果传入为 null
         val resolvedContext = context ?: resolveContext()
         
-        // 安全读取偏好设置：在 system_server (package "android") 或某些环境下可能无法获取 SharedPreferences
+        // 安全读取偏好设置
         val logEnabled = kotlin.runCatching {
             if (resolvedContext != null && resolvedContext.packageName != "android") {
                 PreferenceManager.getDefaultSharedPreferences(resolvedContext)
@@ -51,8 +51,15 @@ object KailLog {
         val callerFileName = getCallerFileName()
         val freqIndicator = if (isHighFrequency) "[H]" else "[L]"
         val fullMessage = "$freqIndicator [$callerFileName] $message"
-        val fullTag = TAG_PREFIX + tag
+        val fullTag = "$TAG_PREFIX$freqIndicator$tag"
         
+        // 尝试输出到 XposedBridge
+        kotlin.runCatching {
+            val bridgeClass = Class.forName("de.robv.android.xposed.XposedBridge")
+            val logMethod = bridgeClass.getDeclaredMethod("log", String::class.java)
+            logMethod.invoke(null, "$fullTag: $fullMessage")
+        }
+
         // 无论高低频，只要开关开启都在控制台输出
         when (level.lowercaseChar()) {
             'i' -> Log.i(fullTag, fullMessage)
@@ -62,7 +69,6 @@ object KailLog {
         }
 
         // 只有低频日志才保存到公共目录
-        // 移除包名限制，以便 Xposed 注入的代码也能在公共目录留下痕迹
         if (!isHighFrequency) {
             saveLogToPublicFile(fullTag, fullMessage, level)
         }
