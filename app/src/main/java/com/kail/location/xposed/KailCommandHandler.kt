@@ -113,6 +113,25 @@ internal object KailCommandHandler {
                 KailLog.d(null, "XPOSED", "PORTAL接收：步频 cadence=$cadence", isHighFrequency = true)
                 return true
             }
+            "load_library" -> {
+                val path = out.getString("path") ?: return false
+                try {
+                    val success = NativeHook.loadLibrary(path)
+                    if (success) {
+                        NativeHook.setStatus(FakeLocState.isStepEnabled())
+                        out.putBoolean("ok", true)
+                        out.putString("result", "success")
+                    } else {
+                        out.putBoolean("ok", false)
+                        out.putString("result", "failed to load")
+                    }
+                } catch (e: Throwable) {
+                    out.putBoolean("ok", false)
+                    out.putString("result", e.message ?: "unknown error")
+                }
+                KailLog.d(null, "XPOSED", "PORTAL接收：加载SO库 path=$path result=${out.getString("result")}")
+                return true
+            }
             else -> return false
         }
     }

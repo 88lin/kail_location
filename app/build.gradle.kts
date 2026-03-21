@@ -25,7 +25,7 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags("-std=c++23")
-                arguments("-DANDROID_STL=c++_shared")
+                arguments("-DANDROID_STL=c++_static")
             }
         }
     }
@@ -87,6 +87,9 @@ dependencies {
 
     // ShadowHook
     implementation("com.bytedance.android:shadowhook:1.0.9")
+
+    // Dobby
+    implementation("io.github.vvb2060.ndk:dobby:1.2")
 
     compileOnly("de.robv.android.xposed:api:82")
     

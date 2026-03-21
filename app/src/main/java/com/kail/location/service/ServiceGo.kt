@@ -728,7 +728,50 @@ class ServiceGo : Service() {
         }
         KailLog.i(this, "ServiceGo", "exchange_key success, key=$key")
         portalRandomKey = key
+
+        // 初始化 SO 加载
+        portalLoadNativeLibraryIfNeeded()
+
         return true
+    }
+
+    /**
+     * 加载 Native Hook 库到系统进程：
+     * - 复制 SO 到 /data/local/kail-lib
+     * - 通过 portal 发送 load_library 命令
+     */
+    private fun portalLoadNativeLibraryIfNeeded(): Boolean {
+        if (!com.kail.location.utils.ShellUtils.hasRoot()) return false
+
+        // 尝试彻底关闭 SELinux 强制模式 (参考 Portal 的思路)
+        com.kail.location.utils.ShellUtils.executeCommand("setenforce 0")
+
+        val soDir = java.io.File("/data/local/kail-lib")
+        // 彻底清理并重建目录，确保权限和上下文
+        com.kail.location.utils.ShellUtils.executeCommand("rm -rf ${soDir.absolutePath}")
+        com.kail.location.utils.ShellUtils.executeCommand("mkdir -p ${soDir.absolutePath}")
+        com.kail.location.utils.ShellUtils.executeCommand("chmod 777 ${soDir.absolutePath}")
+        com.kail.location.utils.ShellUtils.executeCommand("chcon u:object_r:system_file:s0 ${soDir.absolutePath}")
+        
+        val soFile = java.io.File(soDir, "libkail_native_hook.so")
+
+        runCatching {
+            val nativeDir = applicationInfo.nativeLibraryDir
+            val apkSoFile = java.io.File(nativeDir, "libkail_native_hook.so")
+            if (apkSoFile.exists()) {
+                com.kail.location.utils.ShellUtils.executeCommand("cp ${apkSoFile.absolutePath} ${soFile.absolutePath}")
+                com.kail.location.utils.ShellUtils.executeCommand("chmod 777 ${soFile.absolutePath}")
+                // 修复 SELinux 上下文，使其可被系统进程执行 (参考 Portal 类似工具的实践)
+                com.kail.location.utils.ShellUtils.executeCommand("chcon u:object_r:system_file:s0 ${soFile.absolutePath}")
+            }
+        }.onFailure {
+            KailLog.e(this, "ServiceGo", "Failed to copy native library: ${it.message}")
+            return false
+        }
+
+        return portalSend("load_library") {
+            putString("path", soFile.absolutePath)
+        }
     }
 
     /**

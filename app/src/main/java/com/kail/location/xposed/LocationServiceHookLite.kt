@@ -82,7 +82,7 @@ internal object LocationServiceHookLite {
                         }
 
                         if (provider == "portal" && extras != null && KailCommandHandler.handle(provider, command, extras)) {
-                            KailLog.i(null, "KAIL_XPOSED", "PORTAL事务已处理：${command ?: ""}")
+                            KailLog.i(null, "KAIL_XPOSED", "PORTAL事务已处理：${command ?: ""}",isHighFrequency = true)
                             reply.writeNoException()
                             // Android 11 (R, API 30) changed sendExtraCommand to return void in AIDL
                             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {

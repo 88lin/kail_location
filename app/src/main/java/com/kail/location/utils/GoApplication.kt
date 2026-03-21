@@ -51,6 +51,9 @@ class GoApplication : Application() {
             mDefaultHandler?.uncaughtException(thread, throwable)
         }
 
+        // 初始化 Native 库
+        com.kail.location.xposed.NativeHook.loadLocalLibrary()
+
         // 百度地图 7.5 开始，要求必须同意隐私政策，默认为false
         SDKInitializer.setAgreePrivacy(this, true)
         // 百度定位 7.5 开始，要求必须同意隐私政策，默认为false(官方说可以统一为以上接口，但实际测试并不行，定位还是需要单独设置)

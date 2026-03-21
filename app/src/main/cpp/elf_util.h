@@ -99,36 +99,30 @@ namespace SandHook {
         void initLinearMap() const;
         void initModuleBase();
 
-        std::string elf;
-        void *base = nullptr;
-
-        off_t size = 0;
-        off_t bias = -4396;
-
         ElfW(Ehdr) *header = nullptr;
         ElfW(Shdr) *sectionHeader = nullptr;
+        ElfW(Shdr) *symtab = nullptr;
         ElfW(Shdr) *strtab = nullptr;
         ElfW(Shdr) *dynsym = nullptr;
-
         ElfW(Sym) *symtabStart = nullptr;
         ElfW(Sym) *dynsymStart = nullptr;
-        ElfW(Sym) *strtabStart = nullptr;
-
-        ElfW(Off) symtabCount = 0;
+        ElfW(Addr) strtabStart = 0;
         ElfW(Off) symstrOffsetForSymtab = 0;
-
-        uint32_t nbucket_{};
-        uint32_t *bucket_ = nullptr;
-        uint32_t *chain_ = nullptr;
-
-        uint32_t gnu_nbucket_{};
-        uint32_t gnu_symndx_{};
-        uint32_t gnu_bloom_size_;
-        uint32_t gnu_shift2_;
-        uintptr_t *gnu_bloom_filter_;
-        uint32_t *gnu_bucket_;
-        uint32_t *gnu_chain_;
-
+        ElfW(Addr) bias = -4396;
+        size_t size = 0;
+        void *base = nullptr;
+        std::string elf;
+        ElfW(Word) nbucket_ = 0;
+        ElfW(Word) *bucket_ = nullptr;
+        ElfW(Word) *chain_ = nullptr;
+        ElfW(Word) gnu_nbucket_ = 0;
+        ElfW(Word) gnu_symndx_ = 0;
+        ElfW(Word) gnu_bloom_size_ = 0;
+        ElfW(Word) gnu_shift2_ = 0;
+        ElfW(Addr) *gnu_bloom_filter_ = nullptr;
+        ElfW(Word) *gnu_bucket_ = nullptr;
+        ElfW(Word) *gnu_chain_ = nullptr;
+        ElfW(Off) symtabCount = 0;
         mutable std::map<std::string_view, ElfW(Sym) *> symtabs_;
     };
 }

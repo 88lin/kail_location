@@ -21,12 +21,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <cstring>
 #include "elf_util.h"
-#include <android/log.h>
-
-#define LOG_TAG "ElfImg"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#include "logging.h"
 
 using namespace SandHook;
 
@@ -63,7 +60,7 @@ ElfImg::ElfImg(std::string_view base_name) : elf(base_name) {
                 if (bias == -4396) {
                     ElfW(Off) dynsymOffset = section_h->sh_offset;
                     dynsym = section_h;
-                    dynsymStart = offsetOf<decltype(dynsymStart)>(header, dynsymOffset);
+                    dynsymStart = reinterpret_cast<ElfW(Sym) *>(reinterpret_cast<uintptr_t>(header) + dynsymOffset);
                 }
                 break;
             }
@@ -73,7 +70,7 @@ ElfImg::ElfImg(std::string_view base_name) : elf(base_name) {
                     ElfW(Off) symtabSize = section_h->sh_size;
                     ElfW(Off) symtabOffset = section_h->sh_offset;
                     symtabCount = symtabSize / section_h->sh_entsize;
-                    symtabStart = offsetOf<decltype(symtabStart)>(header, symtabOffset);
+                    symtabStart = reinterpret_cast<ElfW(Sym) *>(reinterpret_cast<uintptr_t>(header) + symtabOffset);
                 }
                 break;
             }
@@ -82,7 +79,7 @@ ElfImg::ElfImg(std::string_view base_name) : elf(base_name) {
                 if (bias == -4396) {
                     ElfW(Off) symstrOffset = section_h->sh_offset;
                     strtab = section_h;
-                    strtabStart = offsetOf<decltype(strtabStart)>(header, symstrOffset);
+                    strtabStart = reinterpret_cast<uintptr_t>(header) + symstrOffset;
                 }
 
                 if (strcmp(sectionName, ".strtab") == 0) {
@@ -190,26 +187,42 @@ ElfW(Addr) ElfImg::prefixLookup(std::string_view prefix) const {
 
 ElfW(Addr) ElfImg::getSymbolOffset(std::string_view name, uint32_t gnuHash, uint32_t elfHash) const {
     if (auto offset = gnuLookup(name, gnuHash); offset > 0) {
-        LOGD("Found symbol %s at offset %p in %s at dynsym section by gnu hash", name.data(), reinterpret_cast<void *>(offset), elf.data());
+        LOGD("Found JNI method %s at offset %p in %s at dynsym section by gnu hash", name.data(), reinterpret_cast<void *>(offset), elf.data());
         return offset;
-    } else if (auto offset2 = elfLookup(name, elfHash); offset2 > 0) {
-        LOGD("Found symbol %s at offset %p in %s at dynsym section by elf hash", name.data(), reinterpret_cast<void *>(offset2), elf.data());
-        return offset2;
-    } else if (auto offset3 = linearLookup(name); offset3 > 0) {
-        LOGD("Found symbol %s at offset %p in %s at symtab section by linear lookup", name.data(), reinterpret_cast<void *>(offset3), elf.data());
-        return offset3;
+    } else if (auto offset = elfLookup(name, elfHash); offset > 0) {
+        LOGD("Found JNI method %s at offset %p in %s at dynsym section by elf hash", name.data(), reinterpret_cast<void *>(offset), elf.data());
+        return offset;
+    } else if (auto offset = linearLookup(name); offset > 0) {
+        LOGD("Found JNI method %s at offset %p in %s at symtab section by linear lookup", name.data(), reinterpret_cast<void *>(offset), elf.data());
+        return offset;
     }
     return 0;
 }
 
 void ElfImg::initLinearMap() const {
     if (symtabs_.empty()) {
+        // 先从 .symtab 读取 (如果存在且未被 strip)
         if (symtabStart != nullptr && symstrOffsetForSymtab != 0) {
             for (ElfW(Off) i = 0; i < symtabCount; i++) {
                 unsigned int st_type = ELF_ST_TYPE(symtabStart[i].st_info);
                 const char *st_name = offsetOf<const char *>(header, symstrOffsetForSymtab + symtabStart[i].st_name);
                 if ((st_type == STT_FUNC || st_type == STT_OBJECT) && symtabStart[i].st_size) {
                     symtabs_.emplace(st_name, &symtabStart[i]);
+                }
+            }
+        }
+        // 如果 .symtab 为空或不存在，尝试从 .dynsym 读取 (动态库通常保留该段)
+        if (symtabs_.empty() && dynsymStart != nullptr && strtabStart != 0) {
+            ElfW(Word) count = nbucket_; // 估算动态符号数量
+            if (gnu_nbucket_ > 0) count = gnu_nbucket_ + gnu_symndx_;
+            
+            char *strings = (char *) strtabStart;
+            for (ElfW(Word) i = 0; i < count; i++) {
+                auto *sym = dynsymStart + i;
+                unsigned int st_type = ELF_ST_TYPE(sym->st_info);
+                const char *st_name = strings + sym->st_name;
+                if ((st_type == STT_FUNC || st_type == STT_OBJECT) && sym->st_value > 0) {
+                    symtabs_.emplace(st_name, sym);
                 }
             }
         }

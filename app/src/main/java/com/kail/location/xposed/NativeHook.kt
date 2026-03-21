@@ -5,33 +5,40 @@ import com.kail.location.utils.KailLog
 object NativeHook {
     private var isLoaded = false
 
-    init {
-        try {
+    fun loadLibrary(path: String): Boolean {
+        if (isLoaded && path.endsWith("libkail_native_hook.so")) return true
+        return try {
+            System.load(path)
+            isLoaded = true
+            KailLog.i(null, "NativeHook", "Native library loaded successfully from $path")
+            true
+        } catch (e: Throwable) {
+            KailLog.e(null, "NativeHook", "Failed to load native library from $path: ${e.message}")
+            throw e
+        }
+    }
+
+    fun loadLocalLibrary(): Boolean {
+        if (isLoaded) return true
+        return try {
             System.loadLibrary("kail_native_hook")
             isLoaded = true
-            KailLog.i(null, "NativeHook", "Native library loaded successfully")
+            KailLog.i(null, "NativeHook", "Native library loaded successfully (local)")
+            true
         } catch (e: Throwable) {
-            KailLog.e(null, "NativeHook", "Failed to load native library: ${e.message}")
+            KailLog.e(null, "NativeHook", "Failed to load local native library: ${e.message}")
+            false
         }
     }
 
     /**
-     * 初始化 Hook
-     * 建议在 system_server 进程中调用
+     * 设置传感器 Hook 状态
      */
-    external fun initHook(): Int
-
-    /**
-     * 设置步频配置
-     * @param enabled 是否开启模拟
-     * @param stepsPerMinute 步频 (步/分钟)
-     */
-    external fun setStepConfig(enabled: Boolean, stepsPerMinute: Float)
+    external fun setStatus(status: Boolean)
 
     fun startHook() {
         if (isLoaded) {
-            val res = initHook()
-            KailLog.i(null, "NativeHook", "initHook result: $res")
+            KailLog.i(null, "NativeHook", "Native Hook library loaded and initialized")
         } else {
             KailLog.e(null, "NativeHook", "startHook failed: library not loaded")
         }
@@ -40,12 +47,13 @@ object NativeHook {
     fun setStepConfigSafe(enabled: Boolean, stepsPerMinute: Float) {
         if (isLoaded) {
             try {
-                setStepConfig(enabled, stepsPerMinute)
+                // Now using setStatus from Portal logic
+                setStatus(enabled)
             } catch (e: Throwable) {
-                KailLog.e(null, "NativeHook", "setStepConfig failed: ${e.message}")
+                KailLog.e(null, "NativeHook", "setStatus failed: ${e.message}")
             }
         } else {
-            KailLog.w(null, "NativeHook", "setStepConfig skipped: library not loaded")
+            KailLog.w(null, "NativeHook", "setStatus skipped: library not loaded")
         }
     }
 }
