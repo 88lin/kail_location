@@ -3,6 +3,8 @@ Cadence simulation
 
 [中文说明](README.md) | [English README](README_EN.md)
 
+The logs are located at /storage/emulated/0/Documents/KailLocation/logs/
+
 If you have feature requests, please open an issue.
 
 This software is intended **only** for developers or professionals for debugging and testing.
