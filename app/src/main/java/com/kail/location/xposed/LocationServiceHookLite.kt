@@ -280,7 +280,7 @@ internal object LocationServiceHookLite {
                         param.args[0] = FakeLocState.injectInto(first)
                     }
                     is List<*> -> {
-                        KailLog.i(null, "KAIL_XPOSED", "注入位置列表", isHighFrequency = true)
+//                        KailLog.i(null, "KAIL_XPOSED", "注入位置列表", isHighFrequency = true)
                         val list = first.filterIsInstance<Location>()
                         param.args[0] = list.map { FakeLocState.injectInto(it) }
                     }

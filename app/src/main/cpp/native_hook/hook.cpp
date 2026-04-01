@@ -21,7 +21,7 @@
 #define SENSOR_TYPE_STEP_COUNTER 19
 #define SENSOR_TYPE_STEP_DETECTOR 18
 
-typedef int (*PollFunc)(void*, void*, int);
+typedef long (*PollFunc)(void*, void*, unsigned long);
 
 static PollFunc original_poll = nullptr;
 static bool hook_installed = false;
@@ -63,8 +63,8 @@ static void process_sensor_events(void* buffer, int count) {
     }
 }
 
-extern "C" int hooked_poll(void* thiz, void* buffer, int count) {
-    int ret = 0;
+extern "C" long hooked_poll(void* thiz, void* buffer, unsigned long count) {
+    long ret = 0;
 
     if (original_poll) {
         ret = original_poll(thiz, buffer, count);
@@ -72,7 +72,7 @@ extern "C" int hooked_poll(void* thiz, void* buffer, int count) {
 
     if (!buffer || ret <= 0 || ret > 64) return ret;
 
-    process_sensor_events(buffer, ret);
+    process_sensor_events(buffer, (int)ret);
 
     return ret;
 }
