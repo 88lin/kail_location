@@ -9,6 +9,7 @@
 #include <cerrno>
 #include <sys/types.h>
 #include <cinttypes>
+#include <cmath>
 
 #include "sensor_simulator.h"
 
@@ -41,6 +42,10 @@ static int mSensorHandleStepDetector = -1;
 static int mSensorHandleStepCounter = -1;
 static int isMocking = 0;
 static int isAuthorized = 0;
+static int64_t last_type5_time = 0;
+static int type5_count = 0;
+static float current_spm = 120.0f;
+static int step_event_counter = 0;
 
 #define ALOGI_TO_FILE(...) ALOGI(__VA_ARGS__)
 #define ALOGE_TO_FILE(...) ALOGE(__VA_ARGS__)
@@ -81,23 +86,38 @@ extern "C" void hooked_send_objects(long* param_1, void* param_2, long param_3, 
             int type = *(int*)((char*)event + 0x08);
             
             int64_t timestamp = *(int64_t*)((char*)event + 0x10);
-            float data0 = *(float*)((char*)event + 0x18);
-            float data1 = *(float*)((char*)event + 0x1C);
-            float data2 = *(float*)((char*)event + 0x20);
+            
+            if (type == SENSOR_TYPE_STEP_COUNTER) {
+                uint64_t data0 = *(uint64_t*)((char*)event + 0x18);
+                
+                sensors_event_t se;
+                memset(&se, 0, sizeof(se));
+                se.type = type;
+                se.timestamp = timestamp;
+                se.data[0] = (float)data0;
+                
+                gait::SensorSimulator::Get().ProcessSensorEvents(&se, 1);
+                
+                *(uint64_t*)((char*)event + 0x18) = (uint64_t)se.data[0];
+            } else {
+                float data0 = *(float*)((char*)event + 0x18);
+                float data1 = *(float*)((char*)event + 0x1C);
+                float data2 = *(float*)((char*)event + 0x20);
 
-            sensors_event_t se;
-            memset(&se, 0, sizeof(se));
-            se.type = type;
-            se.timestamp = timestamp;
-            se.data[0] = data0;
-            se.data[1] = data1;
-            se.data[2] = data2;
+                sensors_event_t se;
+                memset(&se, 0, sizeof(se));
+                se.type = type;
+                se.timestamp = timestamp;
+                se.data[0] = data0;
+                se.data[1] = data1;
+                se.data[2] = data2;
 
-            gait::SensorSimulator::Get().ProcessSensorEvents(&se, 1);
+                gait::SensorSimulator::Get().ProcessSensorEvents(&se, 1);
 
-            *(float*)((char*)event + 0x18) = se.data[0];
-            *(float*)((char*)event + 0x1C) = se.data[1];
-            *(float*)((char*)event + 0x20) = se.data[2];
+                *(float*)((char*)event + 0x18) = se.data[0];
+                *(float*)((char*)event + 0x1C) = se.data[1];
+                *(float*)((char*)event + 0x20) = se.data[2];
+            }
         }
     }
 
@@ -117,20 +137,34 @@ extern "C" void hooked_convert_to_sensor_event(void* param_1, void* param_2) {
     }
 
     int sensor_type = *(int*)((char*)param_2 + 0x08);
-    ALOGI("convertToSensorEvent: type=%d", sensor_type);
-    ALOGI("vars: SDT=%d, SSD=%d, SCT=%d, SSC=%d, isMocking=%d", 
-        stepdetectorTrigger, mSensorHandleStepDetector, 
-        stepcounterTrigger, mSensorHandleStepCounter, isMocking);
+//    ALOGI("convertToSensorEvent: type=%d", sensor_type);
+//    ALOGI("vars: SDT=%d, SSD=%d, SCT=%d, SSC=%d, isMocking=%d",
+//        stepdetectorTrigger, mSensorHandleStepDetector,
+//        stepcounterTrigger, mSensorHandleStepCounter, isMocking);
 
     if (sensor_type == SENSOR_TYPE_STEP_DETECTOR) {
         stepdetectorTrigger = 1;
         mSensorHandleStepDetector = *(int*)((char*)param_2 + 0x04);
-        ALOGI("Got STEP_DETECTOR: handle=%d", mSensorHandleStepDetector);
+//        ALOGI("Got STEP_DETECTOR: handle=%d", mSensorHandleStepDetector);
     } else if (sensor_type == SENSOR_TYPE_STEP_COUNTER) {
         stepcounterTrigger = 1;
         mSensorHandleStepCounter = *(int*)((char*)param_2 + 0x04);
-        ALOGI("Got STEP_COUNTER: handle=%d", mSensorHandleStepCounter);
+//        ALOGI("Got STEP_COUNTER: handle=%d", mSensorHandleStepCounter);
     } else if (sensor_type == 5) {
+        if (last_type5_time == 0) {
+            last_type5_time = *(int64_t*)((char*)param_2 + 0x10);
+        }
+        type5_count++;
+        
+        if (type5_count >= 10) {
+            int64_t now = *(int64_t*)((char*)param_2 + 0x10);
+            int64_t diff_us = now - last_type5_time;
+            double diff_sec = diff_us / 1000000.0;
+            type5_count = 0;
+            last_type5_time = now;
+//            ALOGI("type=5 count: %d, time: %.1f sec", type5_count, diff_sec);
+        }
+        
         if (mSensorHandleStepDetector == -1) {
             mSensorHandleStepDetector = 0;
         }
@@ -143,40 +177,36 @@ extern "C" void hooked_convert_to_sensor_event(void* param_1, void* param_2) {
         original_convert_to_sensor_event(param_1, param_2);
     }
 
+//    ALOGI("check: isMocking=%d, type=%d, SDT=%d, SSD=%d, SCT=%d, SSC=%d",
+//        isMocking, sensor_type, stepdetectorTrigger, mSensorHandleStepDetector,
+//        stepcounterTrigger, mSensorHandleStepCounter);
     if ((isMocking != 0) && (sensor_type == 5)) {
         if ((stepdetectorTrigger == 1) && (mSensorHandleStepDetector != -1) &&
             (stepcounterTrigger == 1) && (mSensorHandleStepCounter != -1)) {
-            // 四个值都有，交替发送 18 和 19
-            static int toggle = 0;
-            if (toggle == 0) {
-                toggle = 1;
+            if (step_event_counter < 4) {
+                step_event_counter++;
                 *(int*)((char*)param_2 + 0x04) = mSensorHandleStepDetector;
                 *(int*)((char*)param_2 + 0x08) = 0x12;
-                ALOGI("Modified to STEP_DETECTOR: handle=%d, type=0x12", mSensorHandleStepDetector);
             } else {
-                toggle = 0;
+                step_event_counter = 0;
                 *(int*)((char*)param_2 + 0x04) = mSensorHandleStepCounter;
                 *(int*)((char*)param_2 + 0x08) = 0x13;
-                ALOGI("Modified to STEP_COUNTER: handle=%d, type=0x13", mSensorHandleStepCounter);
             }
         } else if ((stepdetectorTrigger == 1) && (mSensorHandleStepDetector != -1)) {
             stepdetectorTrigger = 0;
             *(int*)((char*)param_2 + 0x04) = mSensorHandleStepDetector;
             *(int*)((char*)param_2 + 0x08) = 0x12;
-            ALOGI("Modified to STEP_DETECTOR: handle=%d, type=0x12", mSensorHandleStepDetector);
         } else if ((stepcounterTrigger == 1) && (mSensorHandleStepCounter != -1)) {
             stepcounterTrigger = 0;
             *(int*)((char*)param_2 + 0x04) = mSensorHandleStepCounter;
             *(int*)((char*)param_2 + 0x08) = 0x13;
-            ALOGI("Modified to STEP_COUNTER: handle=%d, type=0x13", mSensorHandleStepCounter);
         } else {
             stepdetectorTrigger = 1;
             mSensorHandleStepDetector = 0;
             *(int*)((char*)param_2 + 0x04) = 0;
             *(int*)((char*)param_2 + 0x08) = 0x12;
-            ALOGI("Modified to STEP_DETECTOR: handle=0, type=0x12");
         }
-    }
+}
 }
 
 static void install_send_objects_hook() {
@@ -282,9 +312,11 @@ Java_com_kail_location_xposed_FakeLocState_nativeSetRouteSimulation(
     bool isActive = (active != JNI_FALSE);
     
     if (isActive) {
+        current_spm = spm;
         setRouteSimulationActive(true);
         gait::SensorSimulator::Get().UpdateParams(spm, mode, true);
         isMocking = 1;
+        step_event_counter = 0;
     } else {
         setRouteSimulationActive(false);
         isMocking = 0;

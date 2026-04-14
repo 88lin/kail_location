@@ -178,16 +178,31 @@ void SensorSimulator::ApplyLinearAcceleration(sensors_event_t& e, double dt) {
     e.data[2] = static_cast<float>(z);
 }
 
-void SensorSimulator::ApplyStepCounter(sensors_event_t& e, double dt) {
-    const double sps = static_cast<double>(current_spm_) / 60.0;
-    step_counter_ += sps * dt;
-    
-    double drift = NextSignedNoise(0.0005) * (sps * dt);
-    step_counter_ += drift;
-    
-    if (step_counter_ < 0.0) step_counter_ = 0.0;
-    e.data[0] = static_cast<float>(step_counter_);
-}
+    void SensorSimulator::ApplyStepCounter(sensors_event_t& e, double dt) {
+        const double sps = static_cast<double>(current_spm_) / 60.0;
+
+        // 用相位累计“理论步数”
+        step_phase_acc_ += sps * dt;
+
+        // 取整 → 本次新增的步数（离散化）
+        int new_steps = static_cast<int>(step_phase_acc_);
+        step_phase_acc_ -= new_steps;
+
+        // 累加真实步数（整数）
+        step_counter_ += new_steps * 3;
+
+        // 可选：极小漂移（但不要影响整数结构）
+        if (new_steps > 0) {
+            double drift = NextSignedNoise(0.0005);
+            step_counter_ += drift;  // 很小，不影响整体趋势
+        }
+
+        if (step_counter_ < 0.0) step_counter_ = 0.0;
+
+        // 写入（Android 要求 float，但内部我们保持“近似整数”）
+        e.data[0] = static_cast<float>(step_counter_);
+    }
+
 
 void SensorSimulator::ApplyStepDetector(sensors_event_t& e, double dt) {
     e.data[0] = 0.0f;
