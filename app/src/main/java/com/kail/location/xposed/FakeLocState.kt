@@ -2,7 +2,8 @@ package com.kail.location.xposed
 
 import android.location.Location
 import android.location.LocationManager
-import android.util.Log
+import com.kail.location.utils.KailLog
+import com.kail.location.utils.ShellUtils
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
@@ -48,7 +49,7 @@ internal object FakeLocState {
                     enabled
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to set gait params: ${e.message}")
+                KailLog.e(null, TAG, "Failed to set gait params: ${e.message}")
             }
         }
     }
@@ -66,7 +67,7 @@ internal object FakeLocState {
                     stepEnabledRef.get()
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to set gait params: ${e.message}")
+                KailLog.e(null, TAG, "Failed to set gait params: ${e.message}")
             }
         }
     }
@@ -84,7 +85,7 @@ internal object FakeLocState {
                     stepEnabledRef.get()
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to set gait params: ${e.message}")
+                KailLog.e(null, TAG, "Failed to set gait params: ${e.message}")
             }
         }
     }
@@ -95,7 +96,7 @@ internal object FakeLocState {
      * Set gait parameters for native hook
      */
     fun setGaitParams(spm: Float, mode: Int, enable: Boolean) {
-        android.util.Log.i("NativeHook", "setGaitParams called: spm=$spm, mode=$mode, enable=$enable")
+        KailLog.i(null, "NativeHook", "setGaitParams called: spm=$spm, mode=$mode, enable=$enable")
         stepCadenceSpmRef.set(spm)
         gaitModeRef.set(mode)
         stepEnabledRef.set(enable)
@@ -103,14 +104,14 @@ internal object FakeLocState {
         if (nativeLibraryLoaded) {
             try {
                 nativeSetGaitParams(spm, mode, enable)
-                android.util.Log.i("NativeHook", "nativeSetGaitParams succeeded")
-                Log.i(TAG, "Native gait params set: spm=$spm, mode=$mode, enable=$enable")
+                KailLog.i(null, "NativeHook", "nativeSetGaitParams succeeded")
+                KailLog.i(null, TAG, "Native gait params set: spm=$spm, mode=$mode, enable=$enable")
             } catch (e: Exception) {
-                android.util.Log.e("NativeHook", "nativeSetGaitParams failed: ${e.message}")
-                Log.e(TAG, "Failed to set native gait params: ${e.message}")
+                KailLog.e(null, "NativeHook", "nativeSetGaitParams failed: ${e.message}")
+                KailLog.e(null, TAG, "Failed to set native gait params: ${e.message}")
             }
         } else {
-            android.util.Log.w("NativeHook", "nativeLibraryLoaded is false, cannot set params")
+            KailLog.w(null, "NativeHook", "nativeLibraryLoaded is false, cannot set params")
         }
     }
 
@@ -118,40 +119,64 @@ internal object FakeLocState {
      * Load native library into system_server process
      */
     fun loadNativeLibrary(path: String, writeOffset: String = "", convertOffset: String = ""): Pair<Boolean, String> {
+        KailLog.i(null, TAG, ">>> loadNativeLibrary called: path=$path, writeOffset=$writeOffset, convertOffset=$convertOffset")
+        
+        KailLog.i(null, TAG, ">>> Calling getOffsets()...")
+        val offsets = getOffsets()
+        KailLog.i(null, TAG, ">>> getOffsets returned: $offsets")
+        
+        val finalWriteOffset = if (writeOffset.isNotEmpty()) writeOffset else offsets.first
+        val finalConvertOffset = if (convertOffset.isNotEmpty()) convertOffset else offsets.second
+        
+        KailLog.i(null, TAG, ">>> finalWriteOffset=$finalWriteOffset, finalConvertOffset=$finalConvertOffset")
+        
         return try {
             val file = File(path)
             if (!file.exists()) {
+                KailLog.e(null, TAG, ">>> File not found: $path")
                 Pair(false, "File not found: $path")
             } else {
+                KailLog.i(null, TAG, ">>> Loading library: $path")
                 System.load(path)
                 nativeLibraryLoaded = true
+                KailLog.i(null, TAG, ">>> Library loaded, nativeLibraryLoaded=$nativeLibraryLoaded")
 
+                KailLog.i(null, TAG, ">>> Processing pendingWriteOffset...")
                 pendingWriteOffset?.let {
+                    KailLog.i(null, TAG, ">>> Setting pending write offset: $it")
                     setWriteOffset(it)
                     pendingWriteOffset = null
                 }
 
+                KailLog.i(null, TAG, ">>> Processing pendingConvertOffset...")
                 pendingConvertOffset?.let {
+                    KailLog.i(null, TAG, ">>> Setting pending convert offset: $it")
                     setConvertOffset(it)
                     pendingConvertOffset = null
                 }
 
                 if (writeOffset.isNotEmpty()) {
+                    KailLog.i(null, TAG, ">>> Setting write offset from parameter: $writeOffset")
                     setWriteOffset(writeOffset)
                 }
 
                 if (convertOffset.isNotEmpty()) {
+                    KailLog.i(null, TAG, ">>> Setting convert offset from parameter: $convertOffset")
                     setConvertOffset(convertOffset)
                 }
 
+                KailLog.i(null, TAG, ">>> Calling nativeInitHook()...")
                 try {
                     nativeInitHook()
+                    KailLog.i(null, TAG, ">>> nativeInitHook succeeded")
                 } catch (e: Exception) {
+                    KailLog.e(null, TAG, ">>> nativeInitHook failed: ${e.message}")
                 }
 
                 val spm = stepCadenceSpmRef.get()
                 val mode = gaitModeRef.get()
                 val enabled = stepEnabledRef.get()
+                KailLog.i(null, TAG, ">>> Setting gait params: spm=$spm, mode=$mode, enabled=$enabled")
 
                 nativeSetGaitParams(
                     spm,
@@ -159,14 +184,17 @@ internal object FakeLocState {
                     enabled
                 )
 
+                KailLog.i(null, TAG, ">>> loadNativeLibrary succeeded")
                 Pair(true, "Library loaded: $path")
             }
         } catch (e: UnsatisfiedLinkError) {
-            Log.e(TAG, "Failed to load native library: ${e.message}")
-            Pair(false, "Load failed: ${e.message}")
+                KailLog.e(null, TAG, ">>> UnsatisfiedLinkError: ${e.message}")
+                KailLog.e(null, TAG, ">>> Stack: ${e.stackTraceToString()}")
+                Pair(false, "Load failed: ${e.message}")
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading native library: ${e.message}")
-            Pair(false, "Error: ${e.message}")
+                KailLog.e(null, TAG, ">>> Exception: ${e.message}")
+                KailLog.e(null, TAG, ">>> Stack: ${e.stackTraceToString()}")
+                Pair(false, "Error: ${e.message}")
         }
     }
 
@@ -181,7 +209,7 @@ internal object FakeLocState {
                 false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to reload config: ${e.message}")
+            KailLog.e(null, TAG, "Failed to reload config: ${e.message}")
             false
         }
     }
@@ -223,6 +251,7 @@ internal object FakeLocState {
     private var pendingConvertOffset: String? = null
 
     fun setWriteOffset(offsetString: String) {
+        KailLog.i(null, TAG, ">>> setWriteOffset called: $offsetString")
         try {
             val offset = offsetString.toLongOrNull() ?: run {
                 if (offsetString.startsWith("0x", ignoreCase = true)) {
@@ -231,18 +260,24 @@ internal object FakeLocState {
                     null
                 }
             }
+            KailLog.i(null, TAG, ">>> parsed offset: $offset")
             if (offset != null) {
                 if (nativeLibraryLoaded) {
+                    KailLog.i(null, TAG, ">>> calling nativeSetWriteOffset($offset)")
                     nativeSetWriteOffset(offset)
+                    KailLog.i(null, TAG, ">>> nativeSetWriteOffset succeeded")
                 } else {
+                    KailLog.w(null, TAG, ">>> nativeLibraryLoaded=false, saving to pending")
                     pendingWriteOffset = offsetString
                 }
             }
         } catch (e: Exception) {
+            KailLog.e(null, TAG, ">>> setWriteOffset exception: ${e.message}")
         }
     }
 
     fun setConvertOffset(offsetString: String) {
+        KailLog.i(null, TAG, ">>> setConvertOffset called: $offsetString")
         try {
             val offset = offsetString.toLongOrNull() ?: run {
                 if (offsetString.startsWith("0x", ignoreCase = true)) {
@@ -251,14 +286,19 @@ internal object FakeLocState {
                     null
                 }
             }
+            KailLog.i(null, TAG, ">>> parsed offset: $offset")
             if (offset != null) {
                 if (nativeLibraryLoaded) {
+                    KailLog.i(null, TAG, ">>> calling nativeSetConvertOffset($offset)")
                     nativeSetConvertOffset(offset)
+                    KailLog.i(null, TAG, ">>> nativeSetConvertOffset succeeded")
                 } else {
+                    KailLog.w(null, TAG, ">>> nativeLibraryLoaded=false, saving to pending")
                     pendingConvertOffset = offsetString
                 }
             }
         } catch (e: Exception) {
+            KailLog.e(null, TAG, ">>> setConvertOffset exception: ${e.message}")
         }
     }
 
@@ -278,6 +318,37 @@ internal object FakeLocState {
             } catch (e: Exception) {
             }
         }
+    }
+
+    fun getOffsets(): Pair<String, String> {
+        KailLog.i(null, TAG, ">>> getOffsets() called")
+        val commands = listOf("toybox readelf", "readelf")
+        
+        for (cmd in commands) {
+            try {
+                KailLog.i(null, TAG, ">>> Trying command: $cmd")
+                val sensorOut = ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensor.so 2>/dev/null | grep _ZN7android7BitTube11sendObjects")
+                val sensorServiceOut = ShellUtils.executeCommand("$cmd -Ws /system/lib64/libsensorservice.so 2>/dev/null | grep _ZN7android8hardware7sensors14implementation20convertToSensorEvent")
+                
+                KailLog.i(null, TAG, ">>> sensorOut: $sensorOut")
+                KailLog.i(null, TAG, ">>> sensorServiceOut: $sensorServiceOut")
+                
+                if (sensorOut.isNotEmpty() && sensorServiceOut.isNotEmpty()) {
+                    val sensorOffset = sensorOut.trim().split(":").getOrNull(0)?.trim()?.split(" ")?.getOrNull(0) ?: ""
+                    val sensorServiceOffset = sensorServiceOut.trim().split(":").getOrNull(0)?.trim()?.split(" ")?.getOrNull(0) ?: ""
+                    if (sensorOffset.isNotEmpty() && sensorServiceOffset.isNotEmpty()) {
+                        KailLog.i(null, "NativeHook", ">>> Got offsets: sensor=$sensorOffset, sensorService=$sensorServiceOffset")
+                        return Pair(sensorOffset, sensorServiceOffset)
+                    }
+                }
+            } catch (e: Exception) {
+                KailLog.e(null, TAG, ">>> getOffsets exception: ${e.message}")
+                continue
+            }
+        }
+        
+        KailLog.e(null, "NativeHook", ">>> readelf not available")
+        throw Exception("Failed to get offsets: readelf not available")
     }
 
     // Native methods (implemented in C++)

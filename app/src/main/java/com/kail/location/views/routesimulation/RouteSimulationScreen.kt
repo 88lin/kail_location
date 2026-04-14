@@ -242,6 +242,7 @@ fun RouteSimulationScreen(
     if (showSettingsDialog) {
         SettingsDialog(
             settings = settings,
+            runMode = runMode,
             onDismiss = { showSettingsDialog = false },
             onSettingsChange = {
                 if (settings.speed != it.speed) viewModel.updateSpeed(it.speed)
@@ -250,8 +251,7 @@ fun RouteSimulationScreen(
                 if (settings.stepFreqSimulation != it.stepFreqSimulation) viewModel.updateStepFreqSimulation(it.stepFreqSimulation)
                 if (settings.stepCadenceSpm != it.stepCadenceSpm) viewModel.updateStepCadenceSpm(it.stepCadenceSpm)
                 if (settings.mode != it.mode) viewModel.updateMode(it.mode)
-            },
-            runMode = runMode
+            }
         )
     }
 
@@ -467,10 +467,7 @@ fun SettingsDialog(
     runMode: String = "noroot"
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = remember { androidx.preference.PreferenceManager.getDefaultSharedPreferences(context) }
-    val writeOffset = remember { prefs.getString("setting_write_offset", "") ?: "" }
-    val convertOffset = remember { prefs.getString("setting_convert_offset", "") ?: "" }
-    val canUseStepFreq = runMode == "root" && (writeOffset.isNotEmpty() || convertOffset.isNotEmpty())
+    val canUseStepFreq = runMode == "root"
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -554,7 +551,7 @@ fun SettingsDialog(
                             if (!canUseStepFreq) {
                                 android.widget.Toast.makeText(
                                     context, 
-                                    if (runMode != "root") "步频模拟需要 ROOT 模式" else "请先在设置中配置传感器参数",
+                                    "步频模拟需要 ROOT 模式",
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                             } else {

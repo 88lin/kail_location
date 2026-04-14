@@ -120,24 +120,12 @@ internal object KailCommandHandler {
                     out.putBoolean("ok", result.first)
                     out.putString("result", result.second)
                     KailLog.d(null, "XPOSED", "PORTAL接收：加载SO库 path=$path write_offset=$writeOffset result=${result.second}")
-                    android.util.Log.i("NativeHook", "Library load result: ${result.first}, write_offset=$writeOffset")
+                    KailLog.i(null, "NativeHook", "Library load result: ${result.first}, write_offset=$writeOffset")
                 } catch (e: Throwable) {
                     out.putBoolean("ok", false)
                     out.putString("result", e.message ?: "unknown error")
                     KailLog.e(null, "XPOSED", "PORTAL接收：加载SO库失败 path=$path error=${e.message}")
-                    android.util.Log.e("NativeHook", "Library load error: ${e.message}")
-                }
-                return true
-            }
-            "set_write_offset" -> {
-                val offset = out.getString("offset") ?: "0x15210"
-                try {
-                    FakeLocState.setWriteOffset(offset)
-                    out.putBoolean("ok", true)
-                    KailLog.d(null, "XPOSED", "PORTAL接收：设置write偏移 offset=$offset")
-                } catch (e: Throwable) {
-                    out.putBoolean("ok", false)
-                    KailLog.e(null, "XPOSED", "PORTAL接收：设置write偏移失败 error=${e.message}")
+                    KailLog.e(null, "NativeHook", "Library load error: ${e.message}")
                 }
                 return true
             }

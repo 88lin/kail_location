@@ -654,35 +654,19 @@ class ServiceGoRoot : Service() {
 
         KailLog.i(this, "ServiceGoRoot", ">>> soFile exists: ${soFile.exists()}")
         
-        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        val writeOffset = prefs.getString("setting_write_offset", "") ?: ""
-        val convertOffset = prefs.getString("setting_convert_offset", "") ?: ""
-        KailLog.i(this, "ServiceGoRoot", ">>> write offset: $writeOffset, convert offset: $convertOffset")
-        
         val loadResult = portalSend("load_library") {
             putString("path", soFile.absolutePath)
-            putString("write_offset", writeOffset)
-            putString("convert_offset", convertOffset)
         }
         
         KailLog.i(this, "ServiceGoRoot", ">>> loadResult: $loadResult")
         
-        if (loadResult) {
-            if (isRouteSimulationCache && stepEnabledCache) {
-                portalSend("set_route_simulation") {
-                    putBoolean("active", true)
-                    putFloat("spm", stepFreqCache.toFloat())
-                    putInt("mode", 0)
-                }
-                KailLog.i(this, "ServiceGoRoot", ">>> Native hook loaded for route simulation (step freq enabled)")
-            } else {
-                portalSend("set_route_simulation") {
-                    putBoolean("active", false)
-                    putFloat("spm", stepFreqCache.toFloat())
-                    putInt("mode", 0)
-                }
-                KailLog.i(this, "ServiceGoRoot", ">>> Native hook loaded but step freq disabled")
+        if (loadResult && stepEnabledCache) {
+            portalSend("set_route_simulation") {
+                putBoolean("active", true)
+                putFloat("spm", stepFreqCache.toFloat())
+                putInt("mode", 0)
             }
+            KailLog.i(this, "ServiceGoRoot", ">>> Native hook loaded for route simulation")
         } else {
             KailLog.e(this, "ServiceGoRoot", ">>> Load failed!")
         }

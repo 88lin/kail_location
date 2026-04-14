@@ -163,13 +163,6 @@ fun SettingsScreen(
             )
 
             EditTextPreference(
-                title = "传感器参数", // setting_write_offset
-                value = writeOffset,
-                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_WRITE_OFFSET, it) },
-                description = "传感器参数，请查看 GitHub 传感器参数.md"
-            )
-
-            EditTextPreference(
                 title = "历史记录有效期(天)", // setting_history_expiration
                 value = historyExpiration,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_HISTORY_EXPIRATION, it) }
