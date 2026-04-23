@@ -81,7 +81,7 @@ internal object LocationServiceHookLite {
                             data.setDataPosition(startPos)
                         }
 
-                        if (provider == "portal" && extras != null && KailCommandHandler.handle(provider, command, extras)) {
+                        if (provider == "kail" && extras != null && KailCommandHandler.handle(provider, command, extras)) {
                             KailLog.i(null, "KAIL_XPOSED", "PORTAL事务已处理：${command ?: ""}",isHighFrequency = true)
                             reply.writeNoException()
                             // Android 11 (R, API 30) changed sendExtraCommand to return void in AIDL
@@ -121,7 +121,7 @@ internal object LocationServiceHookLite {
                 val provider = param.args[0] as? String ?: return
                 val command = param.args[1] as? String ?: return
                 val out = param.args[2] as? Bundle
-                if (provider != "portal") return
+                if (provider != "kail") return
 
                 val callingUid = Binder.getCallingUid()
                 if (callingUid <= 0) return
@@ -175,7 +175,7 @@ internal object LocationServiceHookLite {
                 if (param == null) return
                 if (param.args.isEmpty()) return
                 val provider = param.args[0] as? String ?: return
-                if (provider != "portal") return
+                if (provider != "kail") return
                 if (FakeLocState.isEnabled()) {
                     param.result = true
                 }

@@ -6,6 +6,8 @@ import com.baidu.mapapi.CoordType
 import com.baidu.mapapi.SDKInitializer
 import com.kail.location.utils.KailLog
 import androidx.preference.PreferenceManager
+import com.google.firebase.FirebaseApp
+import com.google.firebase.analytics.FirebaseAnalytics
 
 /**
  * 自定义 Application，负责应用级初始化。
@@ -43,6 +45,9 @@ class GoApplication : Application() {
      */
     override fun onCreate() {
         super.onCreate()
+
+        // 初始化 Firebase Analytics
+        FirebaseApp.initializeApp(this)
 
         // 先检查日志开关状态并强制输出
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)

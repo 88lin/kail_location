@@ -27,8 +27,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.kail.location.utils.KailLog
+import com.kail.location.utils.GoUtils
 import com.kail.location.models.UpdateInfo
 import com.kail.location.utils.UpdateChecker
 import android.content.Context
@@ -344,7 +347,12 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
         intent.putExtra(extraRouteSpeed, _speed.value.toFloat())
         intent.putExtra(extraCoordType, "BD09")
         
-        ContextCompat.startForegroundService(app, intent)
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            ContextCompat.startForegroundService(app, intent)
+        } else {
+            GoUtils.DisplayToast(app, "需要位置权限才能启动模拟")
+            return
+        }
         _isSimulating.value = true
         _isPaused.value = false
         startLocationMonitor()

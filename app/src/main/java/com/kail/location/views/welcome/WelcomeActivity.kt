@@ -4,6 +4,7 @@ import com.kail.location.views.base.BaseActivity
 import com.kail.location.views.locationsimulation.LocationSimulationActivity
 
 import android.Manifest
+
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager

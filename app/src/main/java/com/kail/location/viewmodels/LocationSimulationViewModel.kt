@@ -10,11 +10,15 @@ import com.kail.location.models.UpdateInfo
 import com.kail.location.utils.UpdateChecker
 import android.content.Context
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
 import kotlinx.coroutines.flow.update
 import com.kail.location.models.HistoryRecord
 import com.kail.location.repositories.DataBaseHistoryLocation
 import com.kail.location.utils.MapUtils
+import com.kail.location.utils.GoUtils
+import com.kail.location.utils.KailLog
 import androidx.preference.PreferenceManager
 import android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.Dispatchers
@@ -131,7 +135,12 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             intent.putExtra(extraCoordType, "BD09")
             intent.putExtra("EXTRA_IS_ROUTE_SIMULATION", false)
             
-            ContextCompat.startForegroundService(app, intent)
+            if (ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                ContextCompat.startForegroundService(app, intent)
+            } else {
+                GoUtils.DisplayToast(app, "需要位置权限才能启动模拟")
+                return
+            }
             _isSimulating.value = true
         } else {
             val currentRunMode = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"

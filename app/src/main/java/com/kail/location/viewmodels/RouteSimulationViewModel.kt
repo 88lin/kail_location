@@ -14,8 +14,11 @@ import java.util.ArrayList
 
 import com.kail.location.models.UpdateInfo
 import com.kail.location.utils.UpdateChecker
+import com.kail.location.utils.GoUtils
 import android.content.Context
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
 import com.baidu.mapapi.model.LatLng
 import org.json.JSONObject
@@ -287,7 +290,12 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
             intent.putExtra(ServiceGoRoot.EXTRA_STEP_FREQ, settings.value.stepCadenceSpm)
             intent.putExtra("EXTRA_IS_ROUTE_SIMULATION", true)
         }
-        ContextCompat.startForegroundService(app, intent)
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            ContextCompat.startForegroundService(app, intent)
+        } else {
+            GoUtils.DisplayToast(app, "需要位置权限才能启动模拟")
+            return false
+        }
         _isSimulating.value = true
         _isPaused.value = false
         return true

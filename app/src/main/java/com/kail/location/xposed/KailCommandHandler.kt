@@ -5,7 +5,7 @@ import com.kail.location.utils.KailLog
 import kotlin.random.Random
 
 internal object KailCommandHandler {
-    private const val PROVIDER = "portal"
+    private const val PROVIDER = "kail"
     private val keyRef = java.util.concurrent.atomic.AtomicReference<String?>(null)
 
     fun handle(provider: String?, command: String?, out: Bundle?): Boolean {

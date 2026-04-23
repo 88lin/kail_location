@@ -72,7 +72,19 @@ extern "C" void hooked_send_objects(long* param_1, void* param_2, long param_3, 
         return;
     }
 
-    char* ptr = (char*)param_2;
+    size_t buffer_size = count * EVENT_SIZE;
+    
+    if (buffer_size > 65536) {
+        if (original_send_objects) {
+            original_send_objects(param_1, param_2, param_3, param_4);
+        }
+        return;
+    }
+
+    char* heap_buffer = new char[buffer_size];
+    memcpy(heap_buffer, param_2, buffer_size);
+
+    char* ptr = heap_buffer;
     for (int i = 0; i < count; i++) {
         void* event = ptr + i * EVENT_SIZE;
         uintptr_t addr = (uintptr_t)event;
@@ -118,6 +130,9 @@ extern "C" void hooked_send_objects(long* param_1, void* param_2, long param_3, 
             }
         }
     }
+
+    memcpy(param_2, heap_buffer, buffer_size);
+    delete[] heap_buffer;
 
     if (!original_send_objects) {
         return;

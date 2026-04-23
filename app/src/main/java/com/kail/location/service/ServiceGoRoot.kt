@@ -106,7 +106,7 @@ class ServiceGoRoot : Service() {
         const val ACTION_STATUS_CHANGED = "com.kail.location.service.STATUS_CHANGED"
         const val EXTRA_IS_SIMULATING = "is_simulating"
         const val EXTRA_IS_PAUSED = "is_paused"
-        private const val PORTAL_PROVIDER = "portal"
+        private const val PORTAL_PROVIDER = "kail"
     }
 
     private fun broadcastStatus() {
