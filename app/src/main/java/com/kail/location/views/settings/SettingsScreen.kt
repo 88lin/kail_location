@@ -50,6 +50,7 @@ fun SettingsScreen(
     val writeOffset by viewModel.writeOffset.collectAsState()
     val convertOffset by viewModel.convertOffset.collectAsState()
     val mapZoom by viewModel.mapZoom.collectAsState()
+    val gpsSatelliteSim by viewModel.gpsSatelliteSim.collectAsState()
 
     Scaffold(
         topBar = {
@@ -160,6 +161,13 @@ fun SettingsScreen(
                 checked = logEnabled,
                 onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_LOG_ENABLED, it) },
                 summary = "控制控制台输出与本地文件保存"
+            )
+
+            SwitchPreference(
+                title = "模拟 GPS 卫星信号",
+                checked = gpsSatelliteSim,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_GPS_SATELLITE_SIM, it) },
+                summary = "伪造卫星数量和信号强度"
             )
 
             EditTextPreference(

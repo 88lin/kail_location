@@ -1,10 +1,11 @@
-package com.kail.location.xposed
+package com.kail.location.xposed.sensor
 
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
+import com.kail.location.xposed.location.FakeLocState
 import java.util.concurrent.ConcurrentHashMap
 
 internal object SensorHookLite {

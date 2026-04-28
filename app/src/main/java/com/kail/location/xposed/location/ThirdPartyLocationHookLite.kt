@@ -1,4 +1,4 @@
-package com.kail.location.xposed
+package com.kail.location.xposed.location
 
 import android.location.Location
 import android.location.LocationListener

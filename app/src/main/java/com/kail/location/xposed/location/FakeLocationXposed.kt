@@ -1,9 +1,10 @@
-package com.kail.location.xposed
+package com.kail.location.xposed.location
 
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import com.kail.location.utils.KailLog
+import com.kail.location.xposed.sensor.SensorHookLite
 import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
 

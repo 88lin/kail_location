@@ -534,7 +534,7 @@ class ServiceGoRoot : Service() {
         mLocHandler = object : Handler(mLocHandlerThread.looper) {
             override fun handleMessage(msg: Message) {
                 try {
-                    Thread.sleep(100)
+                    Thread.sleep(50)
 
                     if (!isStop) {
                         if (mRoutePoints.size >= 2) {
@@ -543,7 +543,7 @@ class ServiceGoRoot : Service() {
                             } else {
                                 mSpeed
                             }
-                            advanceAlongRoute(speedForStep * 0.1)
+                            advanceAlongRoute(speedForStep * 0.05)
                             updateJoystickStatus()
                         }
                     }
@@ -559,15 +559,7 @@ class ServiceGoRoot : Service() {
                 } catch (e: Exception) {
                     KailLog.e(this@ServiceGoRoot, "ServiceGoRoot", "handleMessage exception: ${e.message}")
                     if (!isStop) {
-                        sendEmptyMessage(HANDLER_MSG_ID)
-                    }
-                } catch (e: InterruptedException) {
-                    KailLog.e(this@ServiceGoRoot, "ServiceGoRoot", "handleMessage interrupted: ${e.message}")
-                    Thread.currentThread().interrupt()
-                } catch (e: Exception) {
-                    KailLog.e(this@ServiceGoRoot, "ServiceGoRoot", "handleMessage exception: ${e.message}")
-                    if (!isStop) {
-                        sendEmptyMessageDelayed(HANDLER_MSG_ID, 1000)
+                        sendEmptyMessageDelayed(HANDLER_MSG_ID, 100)
                     }
                 }
             }

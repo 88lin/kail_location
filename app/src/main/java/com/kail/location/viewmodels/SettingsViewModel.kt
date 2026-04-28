@@ -35,6 +35,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_WRITE_OFFSET = "setting_write_offset"
         const val KEY_CONVERT_OFFSET = "setting_convert_offset"
         const val KEY_MAP_ZOOM = "setting_map_zoom"
+        const val KEY_GPS_SATELLITE_SIM = "setting_gps_satellite_sim"
     }
 
     private val _writeOffset = MutableStateFlow(prefs.getString(KEY_WRITE_OFFSET, "") ?: "")
@@ -97,6 +98,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     /** 悬浮窗地图缩放比例偏好的状态流。 */
     val mapZoom: StateFlow<String> = _mapZoom.asStateFlow()
 
+    private val _gpsSatelliteSim = MutableStateFlow(prefs.getBoolean(KEY_GPS_SATELLITE_SIM, false))
+    /** 卫星信号 GPS 模拟开关偏好的状态流。 */
+    val gpsSatelliteSim: StateFlow<Boolean> = _gpsSatelliteSim.asStateFlow()
+
     /** 应用版本号（字符串）。 */
     val appVersion: String = GoUtils.getVersionName(application)
 
@@ -117,6 +122,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_WRITE_OFFSET -> _writeOffset.value = sharedPreferences.getString(key, "") ?: ""
             KEY_CONVERT_OFFSET -> _convertOffset.value = sharedPreferences.getString(key, "") ?: ""
             KEY_MAP_ZOOM -> _mapZoom.value = sharedPreferences.getString(key, "17") ?: "17"
+            KEY_GPS_SATELLITE_SIM -> _gpsSatelliteSim.value = sharedPreferences.getBoolean(key, false)
         }
     }
 

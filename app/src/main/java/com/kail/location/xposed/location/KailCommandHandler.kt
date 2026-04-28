@@ -1,4 +1,4 @@
-package com.kail.location.xposed
+package com.kail.location.xposed.location
 
 import android.os.Bundle
 import com.kail.location.utils.KailLog
