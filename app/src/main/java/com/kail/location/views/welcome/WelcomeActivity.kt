@@ -46,6 +46,7 @@ class WelcomeActivity : AppCompatActivity() {
     }
 
     private var isPermission = false
+    private var hasStartedMainActivity = false
 
     /**
      * 活动创建回调
@@ -271,6 +272,7 @@ class WelcomeActivity : AppCompatActivity() {
      * @param isChecked 是否已勾选同意协议
      */
     private fun startMainActivity(isChecked: Boolean) {
+        if (hasStartedMainActivity) return
         if (!isChecked) {
             GoUtils.DisplayToast(this, getString(R.string.app_error_agreement))
             return
@@ -289,6 +291,7 @@ class WelcomeActivity : AppCompatActivity() {
         checkDefaultPermissions()
 
         if (isPermission) {
+            hasStartedMainActivity = true
             val intent = Intent(this@WelcomeActivity, LocationSimulationActivity::class.java)
             startActivity(intent)
             this@WelcomeActivity.finish()
