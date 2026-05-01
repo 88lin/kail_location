@@ -769,12 +769,42 @@ class ServiceGoRoot : Service() {
         if (ok) {
             KailLog.i(this, "ServiceGoRoot", "portal start command success")
             portalStarted = true
+            // 推送全部配置到 Xposed 模块
+            pushConfigToXposed()
             portalSend("set_step_enabled") { putBoolean("enabled", stepEnabledCache) }
             portalSend("set_step_cadence") { putFloat("cadence", stepFreqCache.toFloat()) }
         } else {
             KailLog.e(this, "ServiceGoRoot", "portal start command failed")
         }
         return ok
+    }
+
+    private fun pushConfigToXposed() {
+        try {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+            portalSend("set_config") {
+                putBoolean("enableMockGnss", prefs.getBoolean("setting_gps_satellite_sim", true))
+                putBoolean("enableMockWifi", prefs.getBoolean("setting_enable_mock_wifi", false))
+                putBoolean("disableGetCurrentLocation", !prefs.getBoolean("setting_allow_get_current_location", true))
+                putBoolean("disableRegisterLocationListener", !prefs.getBoolean("setting_allow_register_listener", true))
+                putBoolean("disableFusedLocation", prefs.getBoolean("setting_disable_fused_location", true))
+                putBoolean("disableNetworkLocation", true)
+                putBoolean("disableRequestGeofence", !prefs.getBoolean("setting_allow_geofence", true))
+                putBoolean("disableGetFromLocation", !prefs.getBoolean("setting_allow_get_from_location", true))
+                putBoolean("enableAGPS", prefs.getBoolean("setting_enable_agps", false))
+                putBoolean("enableNMEA", prefs.getBoolean("setting_enable_nmea", false))
+                putBoolean("hideMock", prefs.getBoolean("setting_hide_mock", true))
+                putBoolean("hookWifi", prefs.getBoolean("setting_disable_wifi_scan", true))
+                putBoolean("needDowngradeToCdma", prefs.getBoolean("setting_downgrade_to_cdma", true))
+                putBoolean("loopBroadcastLocation", prefs.getBoolean("setting_loop_broadcast", false))
+                putInt("minSatellites", prefs.getString("setting_min_satellites", "12")?.toIntOrNull() ?: 12)
+                putFloat("accuracy", prefs.getString("setting_accuracy", "25.0")?.toFloatOrNull() ?: 25.0f)
+                putInt("reportIntervalMs", prefs.getString("setting_report_interval", "100")?.toIntOrNull() ?: 100)
+            }
+            KailLog.i(this, "ServiceGoRoot", "pushConfigToXposed succeeded")
+        } catch (e: Exception) {
+            KailLog.e(this, "ServiceGoRoot", "pushConfigToXposed failed: ${e.message}")
+        }
     }
 
     private fun portalUpdateOnce() {

@@ -41,16 +41,30 @@ fun SettingsScreen(
     val runSpeed by viewModel.runSpeed.collectAsState()
     val bikeSpeed by viewModel.bikeSpeed.collectAsState()
     val altitude by viewModel.altitude.collectAsState()
+    val mockSpeed by viewModel.mockSpeed.collectAsState()
+    val accuracy by viewModel.accuracy.collectAsState()
+    val minSatellites by viewModel.minSatellites.collectAsState()
+    val reportInterval by viewModel.reportInterval.collectAsState()
     val randomOffset by viewModel.randomOffset.collectAsState()
     val latOffset by viewModel.latOffset.collectAsState()
     val lonOffset by viewModel.lonOffset.collectAsState()
     val logEnabled by viewModel.logEnabled.collectAsState()
     val historyExpiration by viewModel.historyExpiration.collectAsState()
     val baiduMapKey by viewModel.baiduMapKey.collectAsState()
-    val writeOffset by viewModel.writeOffset.collectAsState()
-    val convertOffset by viewModel.convertOffset.collectAsState()
     val mapZoom by viewModel.mapZoom.collectAsState()
     val gpsSatelliteSim by viewModel.gpsSatelliteSim.collectAsState()
+    val enableAGPS by viewModel.enableAGPS.collectAsState()
+    val enableNMEA by viewModel.enableNMEA.collectAsState()
+    val enableMockWifi by viewModel.enableMockWifi.collectAsState()
+    val allowGetCurrentLocation by viewModel.allowGetCurrentLocation.collectAsState()
+    val allowRegisterListener by viewModel.allowRegisterListener.collectAsState()
+    val allowGeofence by viewModel.allowGeofence.collectAsState()
+    val allowGetFromLocation by viewModel.allowGetFromLocation.collectAsState()
+    val disableFusedLocation by viewModel.disableFusedLocation.collectAsState()
+    val downgradeToCdma by viewModel.downgradeToCdma.collectAsState()
+    val disableWifiScan by viewModel.disableWifiScan.collectAsState()
+    val loopBroadcast by viewModel.loopBroadcast.collectAsState()
+    val hideMock by viewModel.hideMock.collectAsState()
 
     Scaffold(
         topBar = {
@@ -75,7 +89,7 @@ fun SettingsScreen(
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
         ) {
-            // Group: Move
+            // ===== Group: 移动参数 =====
             PreferenceCategory(title = stringResource(R.string.setting_group_move))
 
             ListPreference(
@@ -87,30 +101,59 @@ fun SettingsScreen(
             )
 
             EditTextPreference(
-                title = stringResource(R.string.setting_walk),
+                title = "步行速度 (m/s)",
                 value = walkSpeed,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_WALK_SPEED, it) }
             )
 
             EditTextPreference(
-                title = stringResource(R.string.setting_run),
+                title = "跑步速度 (m/s)",
                 value = runSpeed,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_RUN_SPEED, it) }
             )
 
             EditTextPreference(
-                title = stringResource(R.string.setting_bike),
+                title = "骑行速度 (m/s)",
                 value = bikeSpeed,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_BIKE_SPEED, it) }
             )
 
+            // ===== Group: 位置模拟参数 =====
+            PreferenceCategory(title = "位置模拟参数")
+
             EditTextPreference(
-                title = stringResource(R.string.setting_altitude),
+                title = "海拔高度 (米)",
                 value = altitude,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_ALTITUDE, it) }
             )
 
-            // Group: Location Offset
+            EditTextPreference(
+                title = "模拟移动速度 (m/s)",
+                value = mockSpeed,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_MOCK_SPEED, it) }
+            )
+
+            EditTextPreference(
+                title = "定位抖动范围 (米)",
+                value = accuracy,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_ACCURACY, it) }
+            )
+
+            EditTextPreference(
+                title = "最少模拟卫星数量",
+                value = minSatellites,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_MIN_SATELLITES, it) },
+                description = "仅支持北斗卫星"
+            )
+
+            EditTextPreference(
+                title = "上报位置频率 (ms)",
+                value = reportInterval,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_REPORT_INTERVAL, it) },
+                description = "单位毫秒，默认 100ms"
+            )
+
+            // ===== Group: 位置偏移 =====
             PreferenceCategory(title = stringResource(R.string.setting_group_location_offset))
 
             SwitchPreference(
@@ -121,34 +164,119 @@ fun SettingsScreen(
             )
 
             EditTextPreference(
-                title = "纬度最大偏移(米)", // Resource might be setting_lat_max_offset but title in xml might be different. Using manual or look up.
-                // Looking at strings.xml in FragmentSettings.kt, it just loads preferences_main.xml.
-                // I don't have preferences_main.xml content but I saw strings.xml keys.
-                // strings.xml didn't have specific string for lat/lon offset TITLE, but maybe it does.
-                // I will use "纬度最大偏移(米)" as fallback or look at strings.xml again.
-                // strings.xml has: <string name="setting_random_offset">随机偏移</string>
-                // It does NOT seem to have explicit titles for max offset in the snippet I read.
-                // Wait, FragmentSettings code: EditTextPreference pfLatOffset = findPreference("setting_lat_max_offset");
-                // The title comes from XML.
-                // I'll assume sensible defaults or check strings.xml again.
-                // Ah, strings.xml lines 68-71:
-                // <string name="setting_group_location_offset">位置偏移</string>
-                // <string name="setting_random_offset">随机偏移</string>
-                // <string name="setting_random_offset_summary">仅在使用历史位置时生效</string>
-                // It doesn't show titles for lat/lon max offset. They might be hardcoded in XML or I missed them.
-                // I'll use "纬度最大偏移(米)" and "经度最大偏移(米)".
+                title = "纬度最大偏移 (米)",
                 value = latOffset,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_LAT_OFFSET, it) }
             )
 
             EditTextPreference(
-                title = "经度最大偏移(米)",
+                title = "经度最大偏移 (米)",
                 value = lonOffset,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_LON_OFFSET, it) }
             )
 
-            // Group: Other
-            PreferenceCategory(title = "其他") // "其他" or generic
+            // ===== Group: 卫星与信号 =====
+            PreferenceCategory(title = "卫星与信号模拟")
+
+            SwitchPreference(
+                title = "模拟 GPS 卫星信号",
+                checked = gpsSatelliteSim,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_GPS_SATELLITE_SIM, it) },
+                summary = "伪造北斗卫星数量和信号强度"
+            )
+
+            SwitchPreference(
+                title = "启用 AGPS 模块",
+                checked = enableAGPS,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ENABLE_AGPS, it) },
+                summary = "辅助定位相关（实验性）"
+            )
+
+            SwitchPreference(
+                title = "启用 NMEA 模块",
+                checked = enableNMEA,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ENABLE_NMEA, it) },
+                summary = "伪造 NMEA 数据输出"
+            )
+
+            SwitchPreference(
+                title = "模拟 WLAN 数据",
+                checked = enableMockWifi,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ENABLE_MOCK_WIFI, it) },
+                summary = "伪造 WiFi 定位数据"
+            )
+
+            // ===== Group: 拦截控制 =====
+            PreferenceCategory(title = "拦截与降级控制")
+
+            SwitchPreference(
+                title = "允许 GetCurrentLocation",
+                checked = allowGetCurrentLocation,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ALLOW_GET_CURRENT_LOCATION, it) },
+                summary = "关闭则拦截 getCurrentLocation 请求"
+            )
+
+            SwitchPreference(
+                title = "允许注册位置监听器",
+                checked = allowRegisterListener,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ALLOW_REGISTER_LISTENER, it) },
+                summary = "关闭则拦截 registerLocationListener"
+            )
+
+            SwitchPreference(
+                title = "允许地理围栏请求",
+                checked = allowGeofence,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ALLOW_GEOFENCE, it) },
+                summary = "关闭则拦截 addGeofence"
+            )
+
+            SwitchPreference(
+                title = "允许位置获取",
+                checked = allowGetFromLocation,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_ALLOW_GET_FROM_LOCATION, it) },
+                summary = "关闭则拦截 getFromLocation 等反查"
+            )
+
+            SwitchPreference(
+                title = "禁用融合定位",
+                checked = disableFusedLocation,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_DISABLE_FUSED_LOCATION, it) },
+                summary = "阻止应用使用 fused provider"
+            )
+
+            SwitchPreference(
+                title = "网络定位降级为 CDMA",
+                checked = downgradeToCdma,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_DOWNGRADE_TO_CDMA, it) },
+                summary = "将网络定位结果伪装为基站定位"
+            )
+
+            SwitchPreference(
+                title = "禁用扫描 WiFi 列表",
+                checked = disableWifiScan,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_DISABLE_WIFI_SCAN, it) },
+                summary = "阻止应用获取真实 WiFi 扫描结果"
+            )
+
+            // ===== Group: 反检测 =====
+            PreferenceCategory(title = "反检测与防拉回")
+
+            SwitchPreference(
+                title = "隐藏模拟位置",
+                checked = hideMock,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_HIDE_MOCK, it) },
+                summary = "移除 Location.isFromMockProvider 标记"
+            )
+
+            SwitchPreference(
+                title = "反定位拉回",
+                checked = loopBroadcast,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_LOOP_BROADCAST, it) },
+                summary = "持续广播位置，一定程度解决被系统拉回"
+            )
+
+            // ===== Group: 日志/其他 =====
+            PreferenceCategory(title = "其他")
 
             EditTextPreference(
                 title = "百度地图 Key (需重启生效)",
@@ -163,15 +291,8 @@ fun SettingsScreen(
                 summary = "控制控制台输出与本地文件保存"
             )
 
-            SwitchPreference(
-                title = "模拟 GPS 卫星信号",
-                checked = gpsSatelliteSim,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_GPS_SATELLITE_SIM, it) },
-                summary = "伪造卫星数量和信号强度"
-            )
-
             EditTextPreference(
-                title = "历史记录有效期(天)", // setting_history_expiration
+                title = "历史记录有效期 (天)",
                 value = historyExpiration,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_HISTORY_EXPIRATION, it) }
             )
@@ -184,7 +305,7 @@ fun SettingsScreen(
             )
 
             ListItem(
-                headlineContent = { Text("当前版本") }, // setting_version
+                headlineContent = { Text("当前版本") },
                 supportingContent = { Text(viewModel.appVersion) }
             )
         }
@@ -193,9 +314,6 @@ fun SettingsScreen(
 
 /**
  * 设置类别标题组件
- * 用于区分不同类型的设置项。
- *
- * @param title 类别标题文本
  */
 @Composable
 fun PreferenceCategory(title: String) {
@@ -209,12 +327,6 @@ fun PreferenceCategory(title: String) {
 
 /**
  * 开关类设置项组件
- * 包含标题、可选摘要和右侧的 Switch 开关。
- *
- * @param title 设置项标题
- * @param checked 当前开关状态
- * @param onCheckedChange 开关状态变更回调
- * @param summary 可选的摘要说明文本
  */
 @Composable
 fun SwitchPreference(
@@ -238,11 +350,6 @@ fun SwitchPreference(
 
 /**
  * 文本编辑类设置项组件
- * 点击后弹出对话框供用户输入文本值。
- *
- * @param title 设置项标题
- * @param value 当前值
- * @param onValueChange 值变更回调
  */
 @Composable
 fun EditTextPreference(
@@ -255,9 +362,9 @@ fun EditTextPreference(
 
     ListItem(
         headlineContent = { Text(title) },
-        supportingContent = { 
+        supportingContent = {
             Column {
-                Text(value.ifEmpty { "未设置" }) 
+                Text(value.ifEmpty { "未设置" })
                 if (description.isNotEmpty()) {
                     Text(description, style = MaterialTheme.typography.bodySmall)
                 }
@@ -308,13 +415,6 @@ fun EditTextPreference(
 
 /**
  * 列表选择类设置项组件
- * 点击后弹出单选列表供用户选择。
- *
- * @param title 设置项标题
- * @param currentValue 当前选中的值（内部值）
- * @param entries 显示给用户的选项名称数组
- * @param entryValues 对应的实际值数组
- * @param onValueChange 值变更回调
  */
 @Composable
 fun ListPreference(
@@ -325,8 +425,7 @@ fun ListPreference(
     onValueChange: (String) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    
-    // Find display name
+
     val index = entryValues.indexOf(currentValue)
     val displayValue = if (index >= 0 && index < entries.size) entries[index] else currentValue
 
@@ -355,7 +454,7 @@ fun ListPreference(
                         ) {
                             RadioButton(
                                 selected = (entryValues[i] == currentValue),
-                                onClick = null // Handled by Row click
+                                onClick = null
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(text = entry)

@@ -3,6 +3,7 @@ package com.kail.location.xposed.core
 import android.os.Bundle
 import com.kail.location.utils.KailLog
 import com.kail.location.xposed.hooks.LocationServiceHook
+import com.kail.location.xposed.utils.FakeLoc
 import kotlin.random.Random
 
 internal object KailCommandHandler {
@@ -142,6 +143,35 @@ internal object KailCommandHandler {
                 } catch (e: Throwable) {
                     out.putBoolean("ok", false)
                     KailLog.e(null, "XPOSED", "PORTAL接收：设置路线模拟失败 error=${e.message}")
+                }
+                return true
+            }
+            "set_config" -> {
+                try {
+                    out.getBoolean("enableMockGnss", FakeLoc.enableMockGnss).let { FakeLoc.enableMockGnss = it }
+                    out.getBoolean("enableMockWifi", FakeLoc.enableMockWifi).let { FakeLoc.enableMockWifi = it }
+                    out.getBoolean("disableGetCurrentLocation", FakeLoc.disableGetCurrentLocation).let { FakeLoc.disableGetCurrentLocation = it }
+                    out.getBoolean("disableRegisterLocationListener", FakeLoc.disableRegisterLocationListener).let { FakeLoc.disableRegisterLocationListener = it }
+                    out.getBoolean("disableFusedLocation", FakeLoc.disableFusedLocation).let { FakeLoc.disableFusedLocation = it }
+                    out.getBoolean("disableNetworkLocation", FakeLoc.disableNetworkLocation).let { FakeLoc.disableNetworkLocation = it }
+                    out.getBoolean("disableRequestGeofence", FakeLoc.disableRequestGeofence).let { FakeLoc.disableRequestGeofence = it }
+                    out.getBoolean("disableGetFromLocation", FakeLoc.disableGetFromLocation).let { FakeLoc.disableGetFromLocation = it }
+                    out.getBoolean("enableAGPS", FakeLoc.enableAGPS).let { FakeLoc.enableAGPS = it }
+                    out.getBoolean("enableNMEA", FakeLoc.enableNMEA).let { FakeLoc.enableNMEA = it }
+                    out.getBoolean("hideMock", FakeLoc.hideMock).let { FakeLoc.hideMock = it }
+                    out.getBoolean("hookWifi", FakeLoc.hookWifi).let { FakeLoc.hookWifi = it }
+                    out.getBoolean("needDowngradeToCdma", FakeLoc.needDowngradeToCdma).let { FakeLoc.needDowngradeToCdma = it }
+                    out.getBoolean("loopBroadcastLocation", FakeLoc.loopBroadcastLocation).let { FakeLoc.loopBroadcastLocation = it }
+                    out.getInt("minSatellites", FakeLoc.minSatellites).let { FakeLoc.minSatellites = it }
+                    out.getFloat("accuracy", FakeLoc.accuracy).let { FakeLoc.accuracy = it }
+                    out.getInt("reportIntervalMs", 100).let {
+                        FakeLoc.reportIntervalMs = it
+                    }
+                    out.putBoolean("ok", true)
+                    KailLog.d(null, "XPOSED", "PORTAL接收：批量配置更新")
+                } catch (e: Throwable) {
+                    out.putBoolean("ok", false)
+                    KailLog.e(null, "XPOSED", "PORTAL接收：批量配置更新失败 error=${e.message}")
                 }
                 return true
             }

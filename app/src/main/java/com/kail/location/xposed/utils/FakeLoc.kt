@@ -96,6 +96,11 @@ object FakeLoc {
     var loopBroadcastLocation = false
 
     /**
+     * 位置上报间隔（毫秒），仅用于部分需要控制频率的场景
+     */
+    var reportIntervalMs = 100
+
+    /**
      * 上一次的位置
      */
     @Volatile var lastLocation: Location? = null
