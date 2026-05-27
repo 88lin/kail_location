@@ -209,6 +209,8 @@ class ServiceGoXposed : Service() {
                             }
                             sendXposedCommand("set_step_enabled", Bundle().apply {
                                 putBoolean("enabled", stepEnabled)
+                                putFloat("cadence", stepCadence)
+                                putInt("mode", stepMode)
                                 putInt("scheme", stepScheme)
                             })
                             sendXposedCommand("set_step_sim_enabled", Bundle().apply {
@@ -258,6 +260,8 @@ class ServiceGoXposed : Service() {
                         }
                         sendXposedCommand("set_step_enabled", Bundle().apply {
                             putBoolean("enabled", stepEnabled)
+                            putFloat("cadence", stepCadence)
+                            putInt("mode", stepMode)
                             putInt("scheme", stepScheme)
                         })
                         sendXposedCommand("set_step_cadence", Bundle().apply {

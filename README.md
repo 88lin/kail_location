@@ -1,59 +1,74 @@
-路线模拟，位置模拟，导航模拟，步频模拟，虚拟定位，nfc模拟
+# Kail Location
 
+路线模拟、位置模拟、导航模拟、步频模拟、虚拟定位、NFC 模拟。
 
-[app下载](https://play.google.com/store/apps/details?id=com.kail.location)
+## 下载
 
-[传感器参数](传感器参数.md)
-日志在/storage/emulated/0/Documents/KailLocation/logs/
+[App 下载](https://play.google.com/store/apps/details?id=com.kail.location)
 
-[中文说明](README.md) | [English README](README_EN.md)
+## 文档
+
+- [传感器参数](传感器参数.md)
+- [中文说明](README.md) | [English README](README_EN.md)
+
+## 日志位置
+
+日志位于：
+
+```text
+/storage/emulated/0/Documents/KailLocation/logs/
+```
+
+## 功能反馈
 
 大家需要什么功能可以在 issues 告诉我。
 
+## 使用说明
+
 本软件仅供开发人员或专业人士调试使用。
 
-联系作者：
-https://t.me/kaillcation
-kailkali23143@gmail.com
-
-技术：
+## 技术栈
 
 - 语言：Kotlin
 - UI：Jetpack Compose
 - 架构：MVVM
 
-更多功能正在开发中
+更多功能正在开发中。
 
-使用条例：
-1. 本软件仅供开发人员或专业人士调试使用，严禁用于一切侵权、侵害他人利益、违法违禁等不当行为和目的，包括但不限于用于校园跑，打卡、签到、网约车、配送服务等，因使用本软件造成的一切后果和损失须由您(用户)自行承担，本软件及本软件作者不予承担由此引起的直接和间接损害责任；且本软件有权对已知存在侵权、侵害他人利益、违法违禁等不当行为和目的的使用场景做相应功能限制。
+## 联系作者
 
-2. 本软件其功能实现所依托的各项权限，都需经由您手动同意授权后才允许使用，您需提前了解设备系统各项权限的作用以及利弊，并自行决定是否授予本软件相应权限。
+- Telegram: https://t.me/kaillcation
+- Email: kailkali23143@gmail.com
 
-3. 您(用户)不得对本软件进行反向工程（Reverse engineer）、反向编译（Decompile）、反汇编（Disassemble）、二次打包发布，违者属于侵权行为，本软件作者有权追究其责任。
+## 使用条例
 
-4. 您(用户)不得使用来源于网络的 DIY、破解等修改版本，以及不得使用针对于本软件的注入型破解修改插件，修改版本和被插件注入后的程序或将不具可控性、安全性和合法性，由此行为引起的一切后果和损失须由您(用户)自行承担，本软件及本软件作者不予承担由此引起的直接和间接损害责任。
+1. 本软件仅供开发人员或专业人士调试使用，严禁用于一切侵权、侵害他人利益、违法违禁等不当行为和目的，包括但不限于用于校园跑、打卡、签到、网约车、配送服务等。因使用本软件造成的一切后果和损失须由您（用户）自行承担，本软件及本软件作者不承担由此引起的直接和间接损害责任；且本软件有权对已知存在侵权、侵害他人利益、违法违禁等不当行为和目的的使用场景做相应功能限制。
 
-5. 本软件本身保证不含任何病毒、木马等破坏用户数据的恶意代码，但是由于本软件可以通过网络等途径下载、传播，对于从非本软件作者指定站点下载的本软件，本软件作者无法保证其是否感染计算机病毒、是否隐藏有伪装的木马程序或者黑客软件等恶意代码，本软件及本软件作者不承担由此引起的直接和间接损害责任。
+2. 本软件功能实现所依托的各项权限，都需经由您手动同意授权后才允许使用。您需提前了解设备系统各项权限的作用以及利弊，并自行决定是否授予本软件相应权限。
 
-6. 由于计算机软硬件环境的差异性和复杂性，本软件所提供的各项功能不能保证在任何情况下都能正常执行或达到您所期望的结果，本软件及本软件作者不予承担由此引起的直接和间接损害责任。
+3. 您（用户）不得对本软件进行反向工程（Reverse engineer）、反向编译（Decompile）、反汇编（Disassemble）、二次打包发布，违者属于侵权行为，本软件作者有权追究其责任。
 
-参考（感谢）：
+4. 您（用户）不得使用来源于网络的 DIY、破解等修改版本，也不得使用针对于本软件的注入型破解修改插件。修改版本和被插件注入后的程序或将不具可控性、安全性和合法性，由此行为引起的一切后果和损失须由您（用户）自行承担，本软件及本软件作者不承担由此引起的直接和间接损害责任。
 
-https://github.com/ZCShou/GoGoGo
+5. 本软件本身保证不含任何病毒、木马等破坏用户数据的恶意代码。但是由于本软件可以通过网络等途径下载、传播，对于从非本软件作者指定站点下载的本软件，本软件作者无法保证其是否感染计算机病毒、是否隐藏有伪装的木马程序或者黑客软件等恶意代码，本软件及本软件作者不承担由此引起的直接和间接损害责任。
 
-https://github.com/Lerist/FakeLocation
+6. 由于计算机软硬件环境的差异性和复杂性，本软件所提供的各项功能不能保证在任何情况下都能正常执行或达到您所期望的结果，本软件及本软件作者不承担由此引起的直接和间接损害责任。
 
-https://github.com/ella8192/Portal
+## 参考与感谢
 
-https://github.com/Hilaver/MockGPS
+- https://github.com/ZCShou/GoGoGo
+- https://github.com/Lerist/FakeLocation
+- https://github.com/ella8192/Portal
+- https://github.com/Hilaver/MockGPS
+- https://github.com/Acooldog/fuckschoolrun
 
-https://github.com/Acooldog/fuckschoolrun
-
-赞赏作者：
+## 赞赏作者
 
 <img width="538" height="397" alt="屏幕截图 2026-01-07 174952" src="https://github.com/user-attachments/assets/eca818b7-d450-4c0b-ae21-c1ad9f493684" />
 
+```text
 TVvudxmNTwzRFe3z7ts9srZE1srkqXgmxm
+```
 
 ## License
 
@@ -61,7 +76,4 @@ TVvudxmNTwzRFe3z7ts9srZE1srkqXgmxm
 
 This project is licensed under the GNU General Public License v3.0 (GPL-3.0).
 
-
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fnoellegazelle6%2Fkail_location.svg?type=large&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2Fnoellegazelle6%2Fkail_location?ref=badge_large&issueType=license)
-
-

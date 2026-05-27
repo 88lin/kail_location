@@ -48,6 +48,19 @@ internal object NativeSensorHook {
     }
 
     @Synchronized
+    fun setRouteSimulation(active: Boolean, spm: Float, mode: Int) {
+        KailLog.i(null, TAG, ">>> [JNI] setRouteSimulation called: active=$active, spm=$spm, mode=$mode")
+        try {
+            nativeSetRouteSimulation(active, spm, mode)
+            KailLog.i(null, TAG, ">>> [JNI] nativeSetRouteSimulation succeeded")
+        } catch (e: Throwable) {
+            KailLog.e(null, TAG, ">>> [JNI] nativeSetRouteSimulation failed: ${e.message}")
+            e.printStackTrace()
+            throw e
+        }
+    }
+
+    @Synchronized
     fun setWriteOffset(offset: Long) {
         KailLog.i(null, TAG, ">>> [JNI] setWriteOffset called: $offset")
         try {
@@ -73,12 +86,19 @@ internal object NativeSensorHook {
     fun reset() {
         KailLog.i(null, TAG, ">>> [JNI] reset called")
         initCalled = false
-        setStepSimEnabled(false)
+        try {
+            nativeReset()
+        } catch (e: Throwable) {
+            KailLog.e(null, TAG, ">>> [JNI] nativeReset failed: ${e.message}")
+            setStepSimEnabled(false)
+        }
     }
 
     private external fun nativeInit(cadence: Float, mode: Int, scheme: Int, enabled: Boolean)
     private external fun nativeSetStepSimEnabled(enabled: Boolean)
+    private external fun nativeSetRouteSimulation(active: Boolean, spm: Float, mode: Int)
     private external fun nativeSetGaitParams(cadence: Float, mode: Int, scheme: Int, enabled: Boolean)
     private external fun nativeSetWriteOffset(offset: Long)
     private external fun nativeSetConvertOffset(offset: Long)
+    private external fun nativeReset()
 }

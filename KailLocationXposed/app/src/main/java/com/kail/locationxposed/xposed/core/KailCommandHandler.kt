@@ -128,6 +128,8 @@ internal object KailCommandHandler {
                     try {
                         System.load(path)
                         FakeLocState.markLoaded()
+                        out.getString("write_offset")?.takeIf { it.isNotBlank() }?.let { FakeLocState.setWriteOffset(it) }
+                        out.getString("convert_offset")?.takeIf { it.isNotBlank() }?.let { FakeLocState.setConvertOffset(it) }
                         out.putBoolean("ok", true)
                         KailLog.d(null, "XPOSED", "KAIL接收：加载SO库 path=$path")
                     } catch (e: Throwable) {
@@ -146,11 +148,12 @@ internal object KailCommandHandler {
                 
                 KailLog.i(null, "XPOSED", ">>> [CMD] set_step_enabled received: enabled=$enabled, cadence=$cadence, mode=$mode, scheme=$scheme")
                 
+                FakeLocState.setStepEnabled(enabled)
                 FakeLocState.setStepCadenceSpm(cadence)
                 FakeLocState.setStepGaitMode(mode)
                 FakeLocState.setStepSimScheme(scheme)
-                KailLog.i(null, "XPOSED", ">>> [CMD] FakeLocState updated: cadence=${FakeLocState.getStepCadenceSpm()}, mode=${FakeLocState.getGaitMode()}, scheme=${FakeLocState.getSimScheme()}")
-                
+                KailLog.i(null, "XPOSED", ">>> [CMD] FakeLocState updated: enabled=${FakeLocState.isStepEnabled()}, cadence=${FakeLocState.getStepCadenceSpm()}, mode=${FakeLocState.getGaitMode()}, scheme=${FakeLocState.getSimScheme()}")
+
                 if (!FakeLocState.ensureNativeLibraryLoaded()) {
                     out.putBoolean("ok", false)
                     KailLog.e(null, "XPOSED", ">>> [CMD] SO not loaded, aborting")
@@ -161,12 +164,15 @@ internal object KailCommandHandler {
                 try {
                     if (enabled) {
                         KailLog.i(null, "XPOSED", ">>> [CMD] Calling NativeSensorHook.init(cadence=$cadence, mode=$mode, scheme=$scheme, enabled=true)")
-                        com.kail.locationxposed.xposed.sensor.NativeSensorHook.init(cadence, mode, scheme, true)
+                        NativeSensorHook.init(cadence, mode, scheme, true)
+                        KailLog.i(null, "XPOSED", ">>> [CMD] Calling NativeSensorHook.setRouteSimulation(true, spm=$cadence, mode=$mode)")
+                        NativeSensorHook.setRouteSimulation(true, cadence, mode)
                         KailLog.i(null, "XPOSED", ">>> [CMD] Calling NativeSensorHook.setStepSimEnabled(true)")
-                        com.kail.locationxposed.xposed.sensor.NativeSensorHook.setStepSimEnabled(true)
+                        NativeSensorHook.setStepSimEnabled(true)
                     } else {
                         KailLog.i(null, "XPOSED", ">>> [CMD] Calling NativeSensorHook.setStepSimEnabled(false)")
-                        com.kail.locationxposed.xposed.sensor.NativeSensorHook.setStepSimEnabled(false)
+                        NativeSensorHook.setStepSimEnabled(false)
+                        NativeSensorHook.setRouteSimulation(false, cadence, mode)
                     }
                     out.putBoolean("ok", true)
                     KailLog.i(null, "XPOSED", ">>> [CMD] set_step_enabled completed successfully")
@@ -176,6 +182,52 @@ internal object KailCommandHandler {
                     KailLog.e(null, "XPOSED", ">>> [CMD] set_step_enabled failed: ${e.message}")
                     e.printStackTrace()
                 }
+                return true
+            }
+            "set_step_cadence" -> {
+                val cadence = out.getFloat("cadence", FakeLocState.getStepCadenceSpm())
+                FakeLocState.setStepCadenceSpm(cadence)
+                if (FakeLocState.isStepEnabled() && FakeLocState.ensureNativeLibraryLoaded()) {
+                    NativeSensorHook.init(cadence, FakeLocState.getGaitMode(), FakeLocState.getSimScheme(), true)
+                    NativeSensorHook.setRouteSimulation(true, cadence, FakeLocState.getGaitMode())
+                    NativeSensorHook.setStepSimEnabled(true)
+                }
+                out.putBoolean("ok", true)
+                KailLog.i(null, "XPOSED", ">>> [CMD] set_step_cadence cadence=$cadence")
+                return true
+            }
+            "set_step_sim_enabled" -> {
+                val enabled = out.getBoolean("enabled", false)
+                FakeLocState.setStepEnabled(enabled)
+                if (!FakeLocState.ensureNativeLibraryLoaded()) {
+                    out.putBoolean("ok", false)
+                    return true
+                }
+                if (enabled) {
+                    NativeSensorHook.init(FakeLocState.getStepCadenceSpm(), FakeLocState.getGaitMode(), FakeLocState.getSimScheme(), true)
+                    NativeSensorHook.setRouteSimulation(true, FakeLocState.getStepCadenceSpm(), FakeLocState.getGaitMode())
+                    NativeSensorHook.setStepSimEnabled(true)
+                } else {
+                    NativeSensorHook.setStepSimEnabled(false)
+                    NativeSensorHook.setRouteSimulation(false, FakeLocState.getStepCadenceSpm(), FakeLocState.getGaitMode())
+                }
+                out.putBoolean("ok", true)
+                KailLog.i(null, "XPOSED", ">>> [CMD] set_step_sim_enabled enabled=$enabled")
+                return true
+            }
+            "set_route_simulation" -> {
+                val active = out.getBoolean("active", false)
+                val spm = out.getFloat("spm", FakeLocState.getStepCadenceSpm())
+                val mode = out.getInt("mode", FakeLocState.getGaitMode())
+                if (!FakeLocState.ensureNativeLibraryLoaded()) {
+                    out.putBoolean("ok", false)
+                    return true
+                }
+                NativeSensorHook.init(spm, mode, FakeLocState.getSimScheme(), active)
+                NativeSensorHook.setRouteSimulation(active, spm, mode)
+                NativeSensorHook.setStepSimEnabled(active && FakeLocState.isStepEnabled())
+                out.putBoolean("ok", true)
+                KailLog.i(null, "XPOSED", ">>> [CMD] set_route_simulation active=$active spm=$spm mode=$mode")
                 return true
             }
             "set_config" -> {
