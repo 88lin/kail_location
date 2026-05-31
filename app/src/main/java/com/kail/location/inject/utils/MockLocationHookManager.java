@@ -1581,39 +1581,68 @@ public class MockLocationHookManager {
      */
     static GnssStatus buildSyntheticGnssStatus() {
         GnssStatus.Builder b = new GnssStatus.Builder();
-        int count = Math.max(10, new SecureRandom().nextInt(maxVisibleGnssSatellites));
-        int avail = gnssSvids != null ? gnssSvids.length : 0;
-        if (avail == 0) return b.build();
-        if (count > avail) count = avail;
-        for (int i = 0; i < count; i++) {
-            int svid = (gnssSvids[i] & 0xff);
-            if (svid < 1) svid = 1;
-            if (svid > 200) svid = 200;
-            float cn0 = gnssCn0DbHz != null && i < gnssCn0DbHz.length ? gnssCn0DbHz[i] : 30.0f;
-            if (cn0 < 0f) cn0 = 0f;
-            if (cn0 > 63f) cn0 = 63f;
-            float rawElev = gnssElevations != null && i < gnssElevations.length ? gnssElevations[i] : 45.0f;
-            // The arrays use 0..360 ranges historically; clamp to GnssStatus's
-            // declared elevation [-90, 90] / azimuth [0, 360] domains.
-            float elev = ((rawElev % 180f) - 90f);
-            if (elev < -90f) elev = -90f;
-            if (elev > 90f) elev = 90f;
-            float rawAz = gnssAzimuths != null && i < gnssAzimuths.length ? gnssAzimuths[i] : 180.0f;
-            float az = rawAz % 360f;
-            if (az < 0f) az += 360f;
-            float carrier = gnssCarrierFrequencies != null && i < gnssCarrierFrequencies.length
-                    ? gnssCarrierFrequencies[i] : 1.57542E9f;
-            int constellation = (i % 5) + 1; // GPS=1, SBAS=2, GLONASS=3, QZSS=4, BEIDOU=5
-            b.addSatellite(constellation, svid, cn0, elev, az,
-                    /*hasEphemeris=*/true,
-                    /*hasAlmanac=*/true,
-                    /*usedInFix=*/i < 12,
-                    /*hasCarrierFrequency=*/true,
-                    carrier,
-                    /*hasBasebandCn0=*/false,
-                    /*basebandCn0=*/0f);
+        SecureRandom rnd = new SecureRandom();
+
+        // GnssStatus constellation type constants (android.location.GnssStatus):
+        //   CONSTELLATION_GPS    = 1
+        //   CONSTELLATION_BEIDOU = 5
+        final int CONSTELLATION_GPS = 1;
+        final int CONSTELLATION_BEIDOU = 5;
+        // Carrier frequencies (Hz): GPS L1 C/A and BeiDou B1I.
+        final float GPS_L1 = 1.57542e9f;
+        final float BDS_B1I = 1.561098e9f;
+
+        // Vary the visible satellite count each event so the sky view looks
+        // alive: 8-14 GPS + 8-14 BeiDou.
+        int gpsCount = 8 + rnd.nextInt(7);   // 8..14
+        int bdsCount = 8 + rnd.nextInt(7);   // 8..14
+
+        // Track which svids we've already emitted per constellation so we
+        // don't duplicate a satellite within one snapshot.
+        java.util.HashSet<Integer> usedGps = new java.util.HashSet<>();
+        java.util.HashSet<Integer> usedBds = new java.util.HashSet<>();
+
+        // GPS svids are 1..32.
+        for (int i = 0; i < gpsCount; i++) {
+            int svid;
+            int guard = 0;
+            do { svid = 1 + rnd.nextInt(32); } while (!usedGps.add(svid) && ++guard < 64);
+            addSyntheticSatellite(b, rnd, CONSTELLATION_GPS, svid, GPS_L1, i < gpsCount - 2);
+        }
+        // BeiDou svids are 1..63.
+        for (int i = 0; i < bdsCount; i++) {
+            int svid;
+            int guard = 0;
+            do { svid = 1 + rnd.nextInt(63); } while (!usedBds.add(svid) && ++guard < 128);
+            addSyntheticSatellite(b, rnd, CONSTELLATION_BEIDOU, svid, BDS_B1I, i < bdsCount - 2);
         }
         return b.build();
+    }
+
+    /**
+     * Append one satellite with randomised, physically-plausible parameters
+     * so consecutive GnssStatus snapshots show the signal strengths,
+     * elevations and azimuths drifting like a real sky view.
+     */
+    private static void addSyntheticSatellite(GnssStatus.Builder b, SecureRandom rnd,
+                                              int constellation, int svid,
+                                              float carrierFreq, boolean usedInFix) {
+        // C/N0 12..45 dB-Hz, fluctuating every call.
+        float cn0 = 12f + rnd.nextFloat() * 33f;
+        // Elevation 5..85 degrees.
+        float elev = 5f + rnd.nextFloat() * 80f;
+        // Azimuth 0..360 degrees.
+        float az = rnd.nextFloat() * 360f;
+        // Baseband C/N0 a couple dB below the antenna C/N0.
+        float baseband = Math.max(0f, cn0 - (1f + rnd.nextFloat() * 3f));
+        b.addSatellite(constellation, svid, cn0, elev, az,
+                /*hasEphemeris=*/true,
+                /*hasAlmanac=*/true,
+                /*usedInFix=*/usedInFix,
+                /*hasCarrierFrequency=*/true,
+                carrierFreq,
+                /*hasBasebandCn0DbHz=*/true,
+                baseband);
     }
 
     /**
