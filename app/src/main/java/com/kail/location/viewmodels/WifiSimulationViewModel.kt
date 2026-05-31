@@ -137,6 +137,12 @@ class WifiSimulationViewModel(application: Application) : AndroidViewModel(appli
                 putExtra(com.kail.location.views.locationpicker.LocationPickerActivity.LAT_MSG_ID, com.kail.location.service.Root.ServiceGoRoot.DEFAULT_LAT)
                 putExtra(com.kail.location.views.locationpicker.LocationPickerActivity.LNG_MSG_ID, com.kail.location.service.Root.ServiceGoRoot.DEFAULT_LNG)
                 putExtra(com.kail.location.views.locationpicker.LocationPickerActivity.ALT_MSG_ID, 55.0)
+                // Pass the selected WiFi networks so ServiceGoRoot can push
+                // them into the FakeLocation injection layer (service_mock_wifi).
+                putParcelableArrayListExtra(
+                    com.kail.location.service.Root.ServiceGoRoot.EXTRA_WIFI_LIST,
+                    ArrayList(activeWifiList)
+                )
             }
             ctx.startService(intent)
         } catch (e: Exception) {

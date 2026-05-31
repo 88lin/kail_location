@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Message
+import android.os.Parcel
 import android.os.Process
 import android.os.SystemClock
 import android.provider.Settings
@@ -124,6 +125,15 @@ class ServiceGoRoot : Service() {
     private var modeWifiOnly: Boolean = false
     private var modeCellOnly: Boolean = false
 
+    /**
+     * WiFi / cell networks selected in the UI for spoofing. Populated from the
+     * start intent's [EXTRA_WIFI_LIST] / [EXTRA_CELL_LIST] parcelable extras.
+     * Pushed into the FakeLocation injection layer via the service_mock_wifi /
+     * service_mock_location binders once the inject is online.
+     */
+    private var pendingWifiList: List<com.kail.location.models.WifiInfo> = emptyList()
+    private var pendingCellList: List<com.kail.location.models.CellInfo> = emptyList()
+
     companion object {
         const val DEFAULT_LAT = ServiceConstants.DEFAULT_LAT
         const val DEFAULT_LNG = ServiceConstants.DEFAULT_LNG
@@ -154,6 +164,8 @@ class ServiceGoRoot : Service() {
         const val EXTRA_STEP_SCHEME = "EXTRA_STEP_SCHEME"
         const val EXTRA_WIFI_ONLY = "EXTRA_WIFI_ONLY"
         const val EXTRA_CELL_ONLY = "EXTRA_CELL_ONLY"
+        const val EXTRA_WIFI_LIST = "EXTRA_WIFI_LIST"
+        const val EXTRA_CELL_LIST = "EXTRA_CELL_LIST"
 
         const val CONTROL_PAUSE = ServiceConstants.CONTROL_PAUSE
         const val CONTROL_RESUME = ServiceConstants.CONTROL_RESUME
@@ -170,6 +182,12 @@ class ServiceGoRoot : Service() {
         const val ACTION_STATUS_CHANGED = ServiceConstants.ACTION_STATUS_CHANGED
         const val EXTRA_IS_SIMULATING = ServiceConstants.EXTRA_IS_SIMULATING
         const val EXTRA_IS_PAUSED = ServiceConstants.EXTRA_IS_PAUSED
+
+        // service_mock_wifi (IMockWifiManager) raw-transaction constants.
+        private const val WIFI_DESCRIPTOR = "com.kail.location.aidl.IMockWifiManager"
+        private const val TXN_START_MOCK_WIFI = 2
+        private const val TXN_STOP_MOCK_WIFI = 3
+        private const val TXN_SET_MOCK_WIFI_NETWORKS = 9
     }
 
     override fun onBind(intent: Intent): IBinder = mBinder
@@ -217,6 +235,24 @@ class ServiceGoRoot : Service() {
         if (intent != null) {
             modeWifiOnly = intent.getBooleanExtra(EXTRA_WIFI_ONLY, false)
             modeCellOnly = intent.getBooleanExtra(EXTRA_CELL_ONLY, false)
+
+            // Selected WiFi / cell networks (parcelable lists from the UI).
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(EXTRA_WIFI_LIST, com.kail.location.models.WifiInfo::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra<com.kail.location.models.WifiInfo>(EXTRA_WIFI_LIST)
+                }
+            }.getOrNull()?.let { if (it.isNotEmpty()) pendingWifiList = it }
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(EXTRA_CELL_LIST, com.kail.location.models.CellInfo::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra<com.kail.location.models.CellInfo>(EXTRA_CELL_LIST)
+                }
+            }.getOrNull()?.let { if (it.isNotEmpty()) pendingCellList = it }
 
             val coordType = intent.getStringExtra(EXTRA_COORD_TYPE) ?: COORD_BD09
             mCurLng = intent.getDoubleExtra(LocationPickerActivity.LNG_MSG_ID, DEFAULT_LNG)
@@ -473,6 +509,15 @@ class ServiceGoRoot : Service() {
         }
     }
 
+    /** Like [resolveMockLocService] but retries while the inject finishes registering. */
+    private fun resolveMockLocServiceWithRetry(): IMockLocationManager? {
+        repeat(10) {
+            resolveMockLocService()?.let { return it }
+            runCatching { Thread.sleep(300) }
+        }
+        return null
+    }
+
     private fun startMockLocationOnInjection() {
         // Stage the FakeLocation toolchain on disk, run kail_inject (with the
         // 5s watchdog), and grant mock_location AppOps.  RootDeployer is
@@ -480,6 +525,39 @@ class ServiceGoRoot : Service() {
         // registered.
         runCatching { RootDeployer.ensureBaseline(this) }
             .onFailure { KailLog.e(this, TAG, "RootDeployer.ensureBaseline: ${it.message}") }
+
+        // WiFi-only / cell-only modes must NOT turn on GNSS satellite
+        // mocking, and WiFi-only must not start location mocking at all.
+        // They still need the inject to have run (so the service_mock_wifi /
+        // service_mock_location binders exist). We route the selected
+        // networks into the FakeLocation injection layer below.
+        if (modeWifiOnly) {
+            // WiFi spoofing is fully independent of location: WifiServiceHook
+            // gates only on MockWifiConfigManager.isMockWifiEnabled(). Clear
+            // any leftover location/GNSS mock state from a previous (non-wifi)
+            // session so enabling only WiFi spoofing doesn't leave GPS faking
+            // active, then push the selected WiFi networks.
+            runCatching {
+                resolveMockLocService()?.let {
+                    it.stopMockLocation()
+                    it.setMockGpsStatus(false)
+                }
+            }
+            applyWifiMockOnInjection()
+            KailLog.i(this, TAG, "wifiOnly: inject staged, WiFi networks pushed, location+GNSS skipped")
+            return
+        }
+
+        if (modeCellOnly) {
+            // Cell spoofing goes through TelephonyRegistryHook, whose isHook()
+            // requires MockLocationHookManager.isMocking()==true. So cell mode
+            // DOES start location mocking (to arm the telephony hook) and
+            // seeds a base fix from the cell coordinates, but it keeps GNSS
+            // satellite mocking OFF and does not run the moving-location loop.
+            applyCellMockOnInjection()
+            KailLog.i(this, TAG, "cellOnly: inject staged, cell towers pushed, GNSS skipped")
+            return
+        }
 
         // Prefer the FakeLocation binder if the inject brought it up.
         val svc = resolveMockLocService()
@@ -503,14 +581,199 @@ class ServiceGoRoot : Service() {
 
     private fun stopMockLocationOnInjection() {
         runCatching { mockLocService?.stopMockLocation() }
+        runCatching { mockLocService?.setMockGpsStatus(false) }
+        runCatching { mockLocService?.setMockCells(null) }
+        runCatching { stopWifiMockOnInjection() }
         fakelocStartCalled = false
         runCatching { mMockLocationProvider.cleanup() }
             .onFailure { KailLog.e(this, TAG, "cleanup providers: ${it.message}") }
     }
 
+    // ------------------------------------------------------------------
+    // WiFi spoofing bridge (service_mock_wifi)
+    //
+    // IMockWifiManager ships with only a Binder.Stub (no client-side Proxy),
+    // so the controller process talks to the registered service via raw
+    // Parcel transactions. Transaction codes mirror the Stub.onTransact
+    // switch in IMockWifiManager:
+    //   2  startMockWifi()
+    //   3  stopMockWifi()
+    //   9  setMockWifiNetworks(List<MockWifiNetwork>)
+    // ------------------------------------------------------------------
+
+    private fun resolveMockWifiBinder(): IBinder? {
+        repeat(10) {
+            val binder = runCatching {
+                ServiceManagerBridge.getService(ClassLoader.getSystemClassLoader(), "service_mock_wifi")
+            }.getOrNull()
+            if (binder != null) return binder
+            runCatching { Thread.sleep(300) }
+        }
+        return null
+    }
+
+    /** Maps a UI [com.kail.location.models.WifiInfo] onto a parceled MockWifiNetwork. */
+    private fun writeMockWifiNetwork(dest: Parcel, wifi: com.kail.location.models.WifiInfo) {
+        // Field order MUST match MockWifiNetwork.writeToParcel:
+        // id, networkType, ssid, bssid, username, password, rssi, linkSpeed,
+        // frequency, capabilities.
+        dest.writeString(if (wifi.id.isNotEmpty()) wifi.id else System.currentTimeMillis().toString())
+        dest.writeString("WIFI")
+        dest.writeString(wifi.ssid)
+        dest.writeString(wifi.bssid)
+        dest.writeString(null) // username
+        dest.writeString(null) // password
+        dest.writeInt(wifi.rssi)
+        dest.writeInt(wifi.linkSpeed)
+        dest.writeInt(wifi.frequency)
+        dest.writeString(wifi.capabilities)
+    }
+
+    private fun applyWifiMockOnInjection() {
+        if (pendingWifiList.isEmpty()) {
+            KailLog.w(this, TAG, "applyWifiMockOnInjection: no WiFi networks selected")
+            return
+        }
+        val binder = resolveMockWifiBinder()
+        if (binder == null) {
+            KailLog.w(this, TAG, "service_mock_wifi binder not online yet")
+            return
+        }
+        // setMockWifiNetworks(List<MockWifiNetwork>) — write as a typed list.
+        runCatching {
+            val data = Parcel.obtain()
+            val reply = Parcel.obtain()
+            try {
+                data.writeInterfaceToken(WIFI_DESCRIPTOR)
+                data.writeInt(pendingWifiList.size)
+                for (wifi in pendingWifiList) {
+                    // Non-null typed-list element marker, then the object body.
+                    data.writeInt(1)
+                    writeMockWifiNetwork(data, wifi)
+                }
+                binder.transact(TXN_SET_MOCK_WIFI_NETWORKS, data, reply, 0)
+                reply.readException()
+            } finally {
+                reply.recycle()
+                data.recycle()
+            }
+        }.onFailure { KailLog.e(this, TAG, "setMockWifiNetworks: ${it.message}") }
+
+        // startMockWifi()
+        runCatching {
+            val data = Parcel.obtain()
+            val reply = Parcel.obtain()
+            try {
+                data.writeInterfaceToken(WIFI_DESCRIPTOR)
+                binder.transact(TXN_START_MOCK_WIFI, data, reply, 0)
+                reply.readException()
+            } finally {
+                reply.recycle()
+                data.recycle()
+            }
+        }.onFailure { KailLog.e(this, TAG, "startMockWifi: ${it.message}") }
+
+        KailLog.i(this, TAG, "WiFi mock active: ${pendingWifiList.size} networks")
+    }
+
+    private fun stopWifiMockOnInjection() {
+        val binder = resolveMockWifiBinder() ?: return
+        runCatching {
+            val data = Parcel.obtain()
+            val reply = Parcel.obtain()
+            try {
+                data.writeInterfaceToken(WIFI_DESCRIPTOR)
+                binder.transact(TXN_STOP_MOCK_WIFI, data, reply, 0)
+                reply.readException()
+            } finally {
+                reply.recycle()
+                data.recycle()
+            }
+        }.onFailure { KailLog.e(this, TAG, "stopMockWifi: ${it.message}") }
+    }
+
+    // ------------------------------------------------------------------
+    // Cell-tower spoofing bridge (service_mock_location.setMockCells)
+    //
+    // TelephonyRegistryHook only feeds the spoofed towers when
+    // MockLocationHookManager.isMocking() is true, so cell mode arms location
+    // mocking + seeds a base fix from the first cell's coordinates, but keeps
+    // GNSS satellite mocking OFF and never runs the moving-location loop.
+    // ------------------------------------------------------------------
+
+    /** Builds an inject-side CellTowerInfo via Parcel (no public constructor). */
+    private fun buildCellTowerInfo(cell: com.kail.location.models.CellInfo): com.kail.location.inject.fakelocation.model.CellTowerInfo? =
+        runCatching {
+            val p = Parcel.obtain()
+            try {
+                // Field order MUST match CellTowerInfo(Parcel):
+                // radioType, mcc, mnc, lac, psc, cellId, latitude, longitude, accuracy.
+                p.writeString(cell.networkType)
+                p.writeInt(cell.mcc)
+                p.writeInt(cell.mnc)
+                p.writeInt(cell.lac)
+                p.writeInt(cell.psc)
+                p.writeLong(cell.cid)
+                p.writeDouble(cell.latitude)
+                p.writeDouble(cell.longitude)
+                p.writeFloat(cell.radius)
+                p.setDataPosition(0)
+                com.kail.location.inject.fakelocation.model.CellTowerInfo.CREATOR.createFromParcel(p)
+            } finally {
+                p.recycle()
+            }
+        }.getOrNull()
+
+    private fun applyCellMockOnInjection() {
+        if (pendingCellList.isEmpty()) {
+            KailLog.w(this, TAG, "applyCellMockOnInjection: no cells selected")
+            return
+        }
+        val svc = resolveMockLocServiceWithRetry()
+        if (svc == null) {
+            KailLog.w(this, TAG, "service_mock_location binder not online yet (cell)")
+            return
+        }
+        val towers = ArrayList<com.kail.location.inject.fakelocation.model.CellTowerInfo>()
+        for (cell in pendingCellList) buildCellTowerInfo(cell)?.let { towers.add(it) }
+        if (towers.isEmpty()) {
+            KailLog.w(this, TAG, "applyCellMockOnInjection: failed to build any CellTowerInfo")
+            return
+        }
+        runCatching {
+            // Arm the telephony hook (isMocking must be true) but keep GNSS off.
+            svc.startMockLocation()
+            svc.setMockGpsStatus(false)
+            svc.setIntervalTimeout(currentLocationUpdateIntervalMs())
+            // Seed a base fix so getMockLocation() is non-null and the cell
+            // identity/registration looks consistent. Use the first cell with
+            // valid coordinates; otherwise fall back to the requested center.
+            val anchor = pendingCellList.firstOrNull { it.latitude != 0.0 || it.longitude != 0.0 }
+            val baseLat = anchor?.latitude ?: mCurLat
+            val baseLng = anchor?.longitude ?: mCurLng
+            val loc = Location(LocationManager.GPS_PROVIDER).apply {
+                latitude = baseLat
+                longitude = baseLng
+                altitude = mCurAlt
+                accuracy = 25.0f
+                time = System.currentTimeMillis()
+                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                extras = Bundle().apply { putString("from", "rocker") }
+            }
+            svc.setMockLocation(loc)
+            svc.setMockCells(towers)
+            KailLog.i(this, TAG, "Cell mock active: ${towers.size} towers, anchor=$baseLat,$baseLng")
+        }.onFailure { KailLog.e(this, TAG, "applyCellMockOnInjection: ${it.message}") }
+    }
+
     private var fakelocStartCalled: Boolean = false
 
+
     private fun pushLocationToInjection() {
+        // Never push location / enable GNSS mock in WiFi-only or cell-only
+        // mode — those modes spoof only WiFi scan results / cell towers.
+        if (modeWifiOnly || modeCellOnly) return
+
         // Path 1: FakeLocation binder.
         // Re-resolve every push so that updates start flowing through the
         // FakeLocation injection layer as soon as kail_inject finishes,

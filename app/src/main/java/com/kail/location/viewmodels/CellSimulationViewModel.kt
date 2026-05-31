@@ -18,8 +18,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 import com.kail.location.auth.UsageManager
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.launch
 
 /**
  * 基站模拟页面的 ViewModel
@@ -199,6 +197,12 @@ target_packages="""
                 putExtra(com.kail.location.views.locationpicker.LocationPickerActivity.LAT_MSG_ID, com.kail.location.service.Root.ServiceGoRoot.DEFAULT_LAT)
                 putExtra(com.kail.location.views.locationpicker.LocationPickerActivity.LNG_MSG_ID, com.kail.location.service.Root.ServiceGoRoot.DEFAULT_LNG)
                 putExtra(com.kail.location.views.locationpicker.LocationPickerActivity.ALT_MSG_ID, 55.0)
+                // Pass the selected cell towers so ServiceGoRoot can push them
+                // into the FakeLocation injection layer (setMockCells).
+                putParcelableArrayListExtra(
+                    com.kail.location.service.Root.ServiceGoRoot.EXTRA_CELL_LIST,
+                    ArrayList(activeCellList)
+                )
             }
             ctx.startService(intent)
         } catch (e: Exception) {
