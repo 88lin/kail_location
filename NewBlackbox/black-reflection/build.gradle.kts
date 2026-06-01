@@ -1,15 +1,7 @@
 plugins {
-    id("com.android.library")
+    id("java-library")
 }
-
-android {
-    namespace = "top.niunaijun.blackbox.stub"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 26
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
