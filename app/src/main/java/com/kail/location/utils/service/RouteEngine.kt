@@ -20,14 +20,24 @@ class RouteEngine {
     private var routeIndex = 0
     private var routeLoop = false
     private var segmentProgressMeters = 0.0
+    /**
+     * True once a non-looping route has reached its end. The engine then parks
+     * at the final point (currentLat/Lng stay at the destination) instead of
+     * clearing — so location keeps reporting the last simulated spot rather
+     * than snapping back to the route's origin.
+     */
+    private var routeFinished = false
 
     var currentLng: Double = 0.0
     var currentLat: Double = 0.0
     var currentBea: Float = 0.0f
 
     val isActive: Boolean get() = routePoints.size >= 2
+    /** True only while the route is still progressing (not yet at its end). */
+    val isProgressing: Boolean get() = routePoints.size >= 2 && !routeFinished
     val progressRatio: Float
         get() {
+            if (routeFinished) return 1f
             if (totalDistance <= 0) return 0f
             val currentDist = if (routeIndex < routeCumulativeDistances.size)
                 routeCumulativeDistances[routeIndex] + segmentProgressMeters
@@ -57,6 +67,7 @@ class RouteEngine {
         }
         routeIndex = 0
         segmentProgressMeters = 0.0
+        routeFinished = false
         calculateRouteDistances()
         KailLog.i(null, TAG, "setupFromArray: ${routePoints.size} points, coordType=$coordType, totalDistance=${"%.1f".format(totalDistance)}m")
     }
@@ -71,10 +82,13 @@ class RouteEngine {
         totalDistance = 0.0
         routeIndex = 0
         segmentProgressMeters = 0.0
+        routeFinished = false
     }
 
     fun seekToRatio(ratio: Float) {
         if (routePoints.size < 2 || routeCumulativeDistances.isEmpty()) return
+        // Seeking back into the route re-activates progression.
+        routeFinished = false
         val targetDist = totalDistance * ratio.coerceIn(0f, 1f)
         var idx = 0
         for (i in 0 until routeCumulativeDistances.size - 1) {
@@ -102,6 +116,11 @@ class RouteEngine {
     }
 
     fun advance(distanceMeters: Double) {
+        // Once a non-looping route has finished, stay parked at the final point
+        // (currentLat/Lng already hold the destination). Do not advance or
+        // reset — the location must remain at the last simulated spot.
+        if (routeFinished) return
+
         var remaining = distanceMeters
         while (remaining > 0 && routePoints.size >= 2) {
             val startIdx = routeIndex
@@ -112,8 +131,7 @@ class RouteEngine {
                     segmentProgressMeters = 0.0
                     continue
                 } else {
-                    KailLog.i(null, TAG, "advance: route finished (no loop), clearing")
-                    clear()
+                    parkAtDestination()
                     break
                 }
             }
@@ -127,7 +145,7 @@ class RouteEngine {
                     if (routeLoop) {
                         routeIndex = 0
                     } else {
-                        clear()
+                        parkAtDestination()
                         break
                     }
                 }
@@ -145,7 +163,7 @@ class RouteEngine {
                     if (routeLoop) {
                         routeIndex = 0
                     } else {
-                        clear()
+                        parkAtDestination()
                         break
                     }
                 }
@@ -162,11 +180,30 @@ class RouteEngine {
         }
     }
 
+    /**
+     * Park the engine at the route's final point. Keeps routePoints intact (so
+     * isActive stays true and the service keeps reporting this fixed spot) and
+     * pins current* to the destination so playback ends at the last simulated
+     * location instead of snapping back to the origin.
+     */
+    private fun parkAtDestination() {
+        routeFinished = true
+        segmentProgressMeters = 0.0
+        if (routePoints.isNotEmpty()) {
+            val last = routePoints.last()
+            currentLng = last.first
+            currentLat = last.second
+            routeIndex = (routePoints.size - 1).coerceAtLeast(0)
+        }
+        KailLog.i(null, TAG, "advance: route finished (no loop), parked at destination lat=$currentLat lng=$currentLng")
+    }
+
     fun buildStatusString(): Pair<String, LatLng>? {
         if (routePoints.isEmpty()) return null
-        val currentDist = if (routeIndex < routeCumulativeDistances.size)
-            routeCumulativeDistances[routeIndex] + segmentProgressMeters
-        else totalDistance
+        val currentDist = if (routeFinished) totalDistance
+            else if (routeIndex < routeCumulativeDistances.size)
+                routeCumulativeDistances[routeIndex] + segmentProgressMeters
+            else totalDistance
 
         val distStr = if (currentDist > 1000) String.format("%.2fkm", currentDist / 1000) else String.format("%.0fm", currentDist)
         val totalDistStr = if (totalDistance > 1000) String.format("%.2fkm", totalDistance / 1000) else String.format("%.0fm", totalDistance)
