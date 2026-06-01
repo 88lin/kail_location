@@ -80,8 +80,8 @@ tasks.withType(Javadoc) {
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
   implementation 'com.google.android.material:material:1.3.0'
-    implementation(project(":black-reflection"))
-    annotationProcessor(project(":compiler"))
+    implementation(project(":NewBlackbox:black-reflection"))
+    annotationProcessor(project(":NewBlackbox:compiler"))
     implementation 'androidx.appcompat:appcompat:1.2.0'
 
     implementation 'com.moandjiezana.toml:toml4j:0.7.2'

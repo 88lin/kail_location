@@ -16,6 +16,7 @@ import com.kail.location.models.UpdateInfo
 import com.kail.location.utils.UpdateChecker
 import com.kail.location.utils.GoUtils
 import com.kail.location.utils.KailLog
+import com.kail.location.utils.SimulationDiagnostics
 import android.content.Context
 import android.content.Intent
 import android.Manifest
@@ -277,13 +278,19 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         viewModelScope.launch {
             val app = getApplication<Application>()
             if (!UsageManager.canStartSimulation(app)) {
+                KailLog.persist(app, SimulationDiagnostics.TAG,
+                    "路线模拟启动被拦截：未登录或免费次数用尽（canStartSimulation=false）", 'w')
                 return@launch
             }
             if (!UsageManager.consumeSimulation(app)) {
+                KailLog.persist(app, SimulationDiagnostics.TAG,
+                    "路线模拟启动被拦截：扣减模拟次数失败（consumeSimulation=false）", 'w')
                 return@launch
             }
             val points = getSelectedRoutePoints()
             if (points == null || points.size < 4) {
+                KailLog.persist(app, SimulationDiagnostics.TAG,
+                    "路线模拟启动被拦截：未选择有效路线（点数=${points?.size ?: 0}，至少需 4 个坐标值）", 'w')
                 _toastMessage.value = app.getString(R.string.route_sim_need_route)
                 return@launch
             }
@@ -296,6 +303,9 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
             if (currentRunMode == "root") {
                 val (ready, remainSec) = UsageManager.systemReadiness()
                 if (!ready) {
+                    KailLog.persist(app, SimulationDiagnostics.TAG,
+                        "路线模拟启动被拦截：系统未就绪，开机仅 ${android.os.SystemClock.elapsedRealtime() / 1000}s，" +
+                            "需 ${UsageManager.bootReadyThresholdSeconds()}s（还需约 ${remainSec}s）", 'w')
                     _toastMessage.value = app.getString(
                         R.string.vm_system_not_ready,
                         UsageManager.bootReadyThresholdSeconds(),
@@ -307,12 +317,16 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
             if (settings.value.stepFreqSimulation) {
                 if (currentRunMode != "root" && currentRunMode != "xposed") {
+                    KailLog.persist(app, SimulationDiagnostics.TAG,
+                        "路线模拟启动被拦截：步频模拟需要 ROOT/Xposed 模式，当前=$currentRunMode", 'w')
                     _toastMessage.value = app.getString(R.string.vm_step_root_required)
                     return@launch
                 }
             }
 
             val serviceClass = getServiceClass(currentRunMode)
+            KailLog.persist(app, SimulationDiagnostics.TAG,
+                "路线模拟：启动 ${serviceClass.simpleName}（模式=$currentRunMode，路线点=${points.size / 2}，步频=${settings.value.stepFreqSimulation}）")
             val intent = Intent(app, serviceClass)
             val extraRoutePoints = getExtraName(currentRunMode, ServiceGoRoot.EXTRA_ROUTE_POINTS, ServiceGoDeveloper.EXTRA_ROUTE_POINTS)
             val extraRouteLoop = getExtraName(currentRunMode, ServiceGoRoot.EXTRA_ROUTE_LOOP, ServiceGoDeveloper.EXTRA_ROUTE_LOOP)

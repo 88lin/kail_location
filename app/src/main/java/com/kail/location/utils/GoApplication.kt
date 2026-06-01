@@ -125,6 +125,13 @@ class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
             mDefaultHandler?.uncaughtException(thread, throwable)
         }
 
+        // 跨重启取证：上一次「开始模拟」若把 system_server 注入崩溃导致整机重启，
+        // 当时的诊断报告来不及落盘。这里在启动时检查注入哨兵，若发现上次注入后
+        // 设备重启过，就强制落盘一条「上次开始模拟疑似导致崩溃重启」+ 崩溃日志。
+        runCatching {
+            Thread({ InjectionCrashSentinel.checkAndReport(this) }, "KailInjectCrashCheck").start()
+        }
+
         SDKInitializer.setAgreePrivacy(this, true)
         LocationClient.setAgreePrivacy(true)
 

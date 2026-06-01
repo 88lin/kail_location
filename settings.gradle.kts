@@ -36,5 +36,6 @@ include(":app")
 include(":NewBlackbox:Bcore")
 include(":NewBlackbox:black-reflection")
 include(":NewBlackbox:compiler")
-include(":NewBlackbox:app")
+// Note: ":NewBlackbox:app" (BlackBox's standalone demo launcher) is intentionally
+// not included — the main app only depends on :NewBlackbox:Bcore.
  

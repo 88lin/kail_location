@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.preference.PreferenceManager
 import com.kail.location.utils.KailLog
 import com.kail.location.utils.ShellUtils
+import com.kail.location.utils.SimulationDiagnostics
 import com.kail.location.viewmodels.SettingsViewModel
 import java.io.File
 import java.util.zip.ZipFile
@@ -81,6 +82,52 @@ object RootDeployer {
         return true
     }
 
+    /**
+     * 带诊断的 ensureBaseline：每一步都记入 [diag]，便于用户排障时一眼定位失败点。
+     * 返回是否成功跑完注入引导（不代表 binder 一定就绪，后续由调用方核对）。
+     */
+    fun ensureBaselineDiagnosed(context: Context, diag: SimulationDiagnostics): Boolean {
+        val rooted = ShellUtils.hasRoot()
+        diag.step(
+            "ROOT 权限",
+            rooted,
+            if (rooted) "su 可用"
+            else "su 调用失败——应用未获 ROOT 授权（请在 KernelSU/Magisk 管理器里授权），将回退到测试Provider"
+        )
+        if (!rooted) {
+            KailLog.w(null, TAG, "ensureBaseline: no root; skipping")
+            return false
+        }
+
+        runCatching { prepareDirs() }
+            .onSuccess { diag.step("准备目录", true, "$STAGING_DIR / $FAKELOC_DIR (chcon system_file)") }
+            .onFailure { diag.error("准备目录", it) }
+
+        syncInjectLogMarkers(context)
+
+        val nativeOk = runCatching { deployNativeHookLib(context) }.getOrDefault(false)
+        diag.step("部署 native hook 库", nativeOk, NATIVE_HOOK_SO)
+
+        val injectorOk = runCatching { deployInjectorBin(context) }.getOrDefault(false)
+        diag.step("部署注入器", injectorOk, INJECTOR_BIN)
+
+        val loaderOk = runCatching { deployFakelocLibs(context) }.getOrDefault(false)
+        diag.step("部署 FakeLocation 注入库", loaderOk, "libfakeloc_init.so 等 ${FAKELOC_LIBS.size} 个")
+
+        val dexOk = runCatching { deployDexPayload(context) }.getOrDefault(false)
+        diag.step("部署 inject.dex", dexOk, "libfakeloc.so (slim dex)")
+
+        val appOpsOk = runCatching { grantMockLocationAppOps(context) }.getOrDefault(false)
+        diag.step("授予 mock_location AppOps", appOpsOk)
+
+        val (injected, injectDetail) = runCatching { bootstrapInjectionVerbose() }.getOrElse {
+            diag.error("ptrace 注入 system_server", it)
+            false to "注入抛异常：${it.message}"
+        }
+        diag.step("ptrace 注入 system_server", injected, injectDetail)
+        return injected
+    }
+
     /** 注入态日志标记目录（与 InjectLog 中的常量保持一致）。 */
     private const val INJECT_LOG_DIR = "/sdcard/Documents/KailLocation/logs"
 
@@ -127,17 +174,44 @@ object RootDeployer {
      * permafrozen, at the cost of an "Inject fail" return.
      */
     fun bootstrapInjection(): Boolean {
-        if (!ShellUtils.hasRoot()) return false
+        return bootstrapInjectionVerbose().first
+    }
+
+    /**
+     * Like [bootstrapInjection] but also returns the injector's raw stdout/stderr
+     * so the diagnostics layer can surface the exact failure (watchdog trip,
+     * remote dlopen hang, "Inject fail", missing files, …) instead of a generic
+     * guess. Returns (success, humanReadableDetail).
+     */
+    fun bootstrapInjectionVerbose(): Pair<Boolean, String> {
+        if (!ShellUtils.hasRoot()) return false to "su 不可用（未授权 ROOT）"
         val injector = File(STAGING_DIR, INJECTOR_BIN)
         val initLoader = File(FAKELOC_DIR, "libfakeloc_init.so")
-        if (!injector.exists() || !initLoader.exists()) {
-            KailLog.e(null, TAG, "bootstrapInjection: injector or loader missing; call stageInjectionPayloads first")
-            return false
+        if (!injector.exists()) {
+            val msg = "注入器缺失：${injector.absolutePath}（部署失败？）"
+            KailLog.e(null, TAG, "bootstrapInjection: $msg")
+            return false to msg
+        }
+        if (!initLoader.exists()) {
+            val msg = "加载器缺失：${initLoader.absolutePath}（部署失败？）"
+            KailLog.e(null, TAG, "bootstrapInjection: $msg")
+            return false to msg
         }
         val cmd = "${injector.absolutePath} -P system_server -l ${initLoader.absolutePath} -n com.kail.location"
-        val out = ShellUtils.executeCommand(cmd)
+        val out = ShellUtils.executeCommand(cmd).trim()
         KailLog.i(null, TAG, "kail_inject -> $out")
-        return out.contains("Inject ok")
+        val ok = out.contains("Inject ok")
+        val detail = when {
+            ok -> "kail_inject 返回 Inject ok"
+            out.contains("watchdog", ignoreCase = true) ->
+                "注入超时：远程函数未返回，watchdog 触发（system_server 繁忙/刚开机未就绪）。原始输出：$out"
+            out.contains("fail", ignoreCase = true) ->
+                "注入器返回失败。原始输出：$out"
+            out.isBlank() ->
+                "注入器无输出（su 被拒/进程被杀？）"
+            else -> "注入未确认成功。原始输出：$out"
+        }
+        return ok to detail
     }
 
     /**

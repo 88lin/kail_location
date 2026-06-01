@@ -27,6 +27,8 @@ import com.kail.location.utils.GoUtils
 import com.kail.location.utils.KailLog
 import com.kail.location.utils.MapUtils
 import com.kail.location.utils.ShellUtils
+import com.kail.location.utils.SimulationDiagnostics
+import com.kail.location.utils.InjectionCrashSentinel
 import com.kail.location.utils.service.RouteEngine
 import com.kail.location.utils.service.ServiceConstants
 import com.kail.location.utils.service.ServiceNotificationHelper
@@ -827,21 +829,48 @@ class ServiceGoRoot : Service() {
     }
 
     private fun startMockLocationOnInjection() {
+        // 模拟启动诊断：把每一步前置条件 + 最终判定写成一整块报告，
+        // 无视日志开关强制落盘，方便用户失败后导出日志一眼定位原因。
+        val scenario = when {
+            modeWifiOnly -> "wifi"
+            modeCellOnly -> "cell"
+            mRouteEngine.isActive -> "route"
+            else -> "location"
+        }
+        val diag = SimulationDiagnostics.begin(this, mode = "root", scenario = scenario)
+
+        // Sample system_server PID BEFORE injection so we can detect a
+        // watchdog-induced restart (a crashed inject changes the PID).
+        val ssPidBefore = diag.sampleSystemServerPid("注入前")
+
+        // 注入崩溃哨兵布防：注入若把 system_server 搞崩导致整机重启，下面的诊断
+        // 报告 finish() 将永远跑不到、报告丢失。所以先同步写一条「待确认」记录，
+        // 下次启动 InjectionCrashSentinel.checkAndReport 即可跨重启确证「上次开始
+        // 模拟把系统搞崩了」。注入确认健康后再撤防。
+        InjectionCrashSentinel.arm(scenario, Build.VERSION.SDK_INT, "${Build.MANUFACTURER} ${Build.MODEL}")
+
         // Stage the FakeLocation toolchain on disk, run kail_inject (with the
         // 5s watchdog), and grant mock_location AppOps.  RootDeployer is
         // idempotent and never re-runs the inject if the binder is already
         // registered.
-        runCatching { RootDeployer.ensureBaseline(this) }
-            .onFailure { KailLog.e(this, TAG, "RootDeployer.ensureBaseline: ${it.message}") }
+        val injected = runCatching { RootDeployer.ensureBaselineDiagnosed(this, diag) }
+            .getOrElse {
+                KailLog.e(this, TAG, "RootDeployer.ensureBaseline: ${it.message}")
+                diag.error("注入引导", it)
+                false
+            }
 
-        // Mirror the native LHooker init diagnostics (ArtMethod layout
-        // auto-detection results, final offsets, fail-safe outcome) into the
-        // app's own log file. The hook engine runs inside system_server, which
-        // cannot write to the app's scoped-storage log dir, so it drops the
-        // summary at /data/kail-loc/lhooker_init.log; we (the app process) read
-        // it back and persist it through KailLog so it is exportable for
-        // offline troubleshooting on devices we don't own.
-        mirrorLHookerInitLog()
+        // Fold the native LHooker ArtMethod probe results into THIS diagnostic
+        // block (instead of scattering them via separate log lines), and detect
+        // whether the inject restarted system_server.
+        val probeLines = mirrorLHookerInitLog()
+        diag.recordNativeProbe(probeLines)
+        val ssPidAfter = diag.sampleSystemServerPid("注入后")
+        diag.checkSystemServerStable(ssPidBefore, ssPidAfter)
+
+        // 走到这里说明 app 进程没被注入崩溃带走（system_server 至少还能响应 pgrep）。
+        // 撤防哨兵：本次注入没有立即把整机搞崩。
+        InjectionCrashSentinel.disarm()
 
         // WiFi-only / cell-only modes must NOT turn on GNSS satellite
         // mocking, and WiFi-only must not start location mocking at all.
@@ -849,6 +878,9 @@ class ServiceGoRoot : Service() {
         // service_mock_location binders exist). We route the selected
         // networks into the FakeLocation injection layer below.
         if (modeWifiOnly) {
+            val wsvc = resolveMockLocService()
+            diag.step("service_mock_location binder", wsvc != null,
+                if (wsvc != null) "已注册" else "未注册——注入未生效")
             // WiFi spoofing is fully independent of location: WifiServiceHook
             // gates only on MockWifiConfigManager.isMockWifiEnabled(). Clear
             // any leftover location/GNSS mock state from a previous (non-wifi)
@@ -862,28 +894,45 @@ class ServiceGoRoot : Service() {
                     it.setSafeApps(null)
                 }
             }
-            applyWifiMockOnInjection()
+            val wifiPushed = runCatching { applyWifiMockOnInjection(); true }.getOrDefault(false)
+            diag.step("下发 WiFi 模拟", wifiPushed)
             applyAllowPackages(independentAllowPackages)
             KailLog.i(this, TAG, "wifiOnly: inject staged, WiFi networks pushed, location+GNSS skipped")
+            diag.verdict(wifiPushed && wsvc != null, "仅 WiFi 模拟")
+            diag.finish()
             return
         }
 
         if (modeCellOnly) {
+            val csvc = resolveMockLocService()
+            diag.step("service_mock_location binder", csvc != null,
+                if (csvc != null) "已注册" else "未注册——注入未生效")
             // Cell spoofing goes through TelephonyRegistryHook, whose isHook()
             // requires MockLocationHookManager.isMocking()==true. So cell mode
             // DOES start location mocking (to arm the telephony hook) and
             // seeds a base fix from the cell coordinates, but it keeps GNSS
             // satellite mocking OFF and does not run the moving-location loop.
-            applyCellMockOnInjection()
+            val cellPushed = runCatching { applyCellMockOnInjection(); true }.getOrDefault(false)
+            diag.step("下发基站模拟", cellPushed)
             applyAllowPackages(independentAllowPackages)
             KailLog.i(this, TAG, "cellOnly: inject staged, cell towers pushed, GNSS skipped")
+            diag.verdict(cellPushed && csvc != null, "仅基站模拟")
+            diag.finish()
             return
         }
 
-        // Prefer the FakeLocation binder if the inject brought it up.
-        val svc = resolveMockLocService()
+        // Prefer the FakeLocation binder if the inject brought it up. Use the
+        // retry resolver so a binder that registers slightly after inject
+        // returns isn't misdiagnosed as "not registered".
+        val svc = resolveMockLocServiceWithRetry()
+        diag.step(
+            "service_mock_location binder",
+            svc != null,
+            if (svc != null) "已注册，走 FakeLocation 注入层（强）"
+            else "未注册——注入未生效，将回退到测试Provider（弱，易被检测）"
+        )
         if (svc != null) {
-            runCatching {
+            val started = runCatching {
                 // Clear any scoped block-list a previous cell-only session may
                 // have installed, otherwise normal location mocking would be
                 // silently blocked by the "abhf|*" rule.
@@ -893,16 +942,39 @@ class ServiceGoRoot : Service() {
                 pushLocationToInjection()
                 applyAllowPackages(independentAllowPackages)
                 KailLog.i(this, TAG, "FakeLocation mock-location active lat=$mCurLat lng=$mCurLng")
-            }.onFailure { KailLog.e(this, TAG, "startMockLocation (binder): ${it.message}") }
+                true
+            }.getOrElse { KailLog.e(this, TAG, "startMockLocation (binder): ${it.message}"); diag.error("启动 FakeLocation 模拟", it); false }
+            diag.step("启动 FakeLocation 模拟", started, "lat=$mCurLat lng=$mCurLng")
+            diag.verdict(started, "FakeLocation 注入层模拟生效")
+            diag.finish()
             return
         }
 
         // Fallback: register GPS + NETWORK test providers and push an initial fix.
-        runCatching {
+        val fallbackOk = runCatching {
             mMockLocationProvider.ensureProviders()
             pushLocationToInjection()
             KailLog.i(this, TAG, "Test-provider mock-location active lat=$mCurLat lng=$mCurLng")
-        }.onFailure { KailLog.e(this, TAG, "ensureProviders: ${it.message}") }
+            true
+        }.getOrElse { KailLog.e(this, TAG, "ensureProviders: ${it.message}"); diag.error("注册测试Provider", it); false }
+        diag.step("回退：注册测试Provider", fallbackOk)
+        // 即便回退路径本身成功，对 root 模式而言这仍是「未达预期」——注入没生效。
+        diag.verdict(false,
+            if (injected) "注入声称成功但 binder 未注册，已回退测试Provider"
+            else "ROOT 注入未生效，已回退测试Provider（表现等同开发者模式，易被检测）")
+        diag.finish()
+
+        // 让用户当场知道为什么「像开发者模式」：root 注入没生效已回退。
+        // 否则用户只会困惑「root 模式怎么变成测试 Provider 了」。
+        runCatching {
+            val msg = if (injected)
+                getString(R.string.service_root_fallback_binder)
+            else
+                getString(R.string.service_root_fallback_noroot)
+            android.os.Handler(mainLooper).post {
+                GoUtils.DisplayToast(applicationContext, msg)
+            }
+        }
     }
 
     /**
@@ -912,9 +984,12 @@ class ServiceGoRoot : Service() {
      * exportable KailLog. Each injection appends a fresh "===== LHooker init"
      * block; we surface the most recent one so the auto-detected ArtMethod
      * layout is visible when troubleshooting.
+     *
+     * @return the lines of the most recent init block (empty if none), so the
+     *         caller can fold them into the SimulationDiagnostics report.
      */
-    private fun mirrorLHookerInitLog() {
-        runCatching {
+    private fun mirrorLHookerInitLog(): List<String> {
+        return runCatching {
             val candidates = listOf(
                 java.io.File("/data/kail-loc/lhooker_init.log"),
                 java.io.File("/data/local/kail-lib/lhooker_init.log"),
@@ -934,18 +1009,23 @@ class ServiceGoRoot : Service() {
             }
             if (text.isNullOrBlank()) {
                 KailLog.i(this, TAG, "LHooker init log not found yet")
-                return@runCatching
+                return@runCatching emptyList<String>()
             }
             // Keep only the last init block to avoid replaying stale sessions.
             val lastBlock = text.trim().split("===== LHooker init")
                 .lastOrNull { it.isNotBlank() }
                 ?.let { "===== LHooker init$it" }
                 ?: text.trim()
-            lastBlock.lineSequence()
+            val lines = lastBlock.lineSequence()
                 .map { it.trimEnd() }
                 .filter { it.isNotBlank() }
-                .forEach { KailLog.i(this, TAG, "[native] $it") }
-        }.onFailure { KailLog.w(this, TAG, "mirrorLHookerInitLog: ${it.message}") }
+                .toList()
+            lines.forEach { KailLog.i(this, TAG, "[native] $it") }
+            lines
+        }.getOrElse {
+            KailLog.w(this, TAG, "mirrorLHookerInitLog: ${it.message}")
+            emptyList()
+        }
     }
 
     private fun stopMockLocationOnInjection() {

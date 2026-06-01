@@ -539,6 +539,8 @@
     <string name="vm_unknown_location">未知地点</string>
     <string name="vm_step_root_required">步频模拟需要 ROOT 模式</string>
     <string name="vm_system_not_ready">系统未就绪，请开机 %1$d 秒后再试（剩余约 %2$d 秒）</string>
+    <string name="service_root_fallback_noroot">未获得 ROOT 授权，已回退到测试 Provider（易被检测）。请在 ROOT 管理器里授权 KailLocation。</string>
+    <string name="service_root_fallback_binder">注入未生效，已回退到测试 Provider。请稍候重试，或重启设备后再开始模拟。</string>
 
     <!-- History VM -->
     <string name="history_vm_coord_wgs84">[经度:%1$s 纬度:%2$s]</string>

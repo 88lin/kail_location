@@ -19,6 +19,7 @@ import com.kail.location.repositories.DataBaseHistoryLocation
 import com.kail.location.utils.MapUtils
 import com.kail.location.utils.GoUtils
 import com.kail.location.utils.KailLog
+import com.kail.location.utils.SimulationDiagnostics
 import com.kail.location.auth.UsageManager
 import androidx.preference.PreferenceManager
 import android.database.sqlite.SQLiteDatabase
@@ -126,9 +127,13 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
         if (next) {
             viewModelScope.launch {
                 if (!UsageManager.canStartSimulation(app)) {
+                    KailLog.persist(app, SimulationDiagnostics.TAG,
+                        "位置模拟启动被拦截：未登录或免费次数用尽（canStartSimulation=false）", 'w')
                     return@launch
                 }
                 if (!UsageManager.consumeSimulation(app)) {
+                    KailLog.persist(app, SimulationDiagnostics.TAG,
+                        "位置模拟启动被拦截：扣减模拟次数失败（consumeSimulation=false）", 'w')
                     return@launch
                 }
                 val info = locationInfo.value
@@ -142,6 +147,9 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                 if (currentRunMode == "root") {
                     val (ready, remainSec) = UsageManager.systemReadiness()
                     if (!ready) {
+                        KailLog.persist(app, SimulationDiagnostics.TAG,
+                            "位置模拟启动被拦截：系统未就绪，开机仅 ${android.os.SystemClock.elapsedRealtime() / 1000}s，" +
+                                "需 ${UsageManager.bootReadyThresholdSeconds()}s（还需约 ${remainSec}s）", 'w')
                         GoUtils.DisplayToast(
                             app,
                             app.getString(
@@ -187,8 +195,13 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                 }
                 
                 if (ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    val svcName = if (currentRunMode == "root") "ServiceGoRoot" else "ServiceGoDeveloper"
+                    KailLog.persist(app, SimulationDiagnostics.TAG,
+                        "位置模拟：启动 $svcName（模式=$currentRunMode）")
                     ContextCompat.startForegroundService(app, intent)
                 } else {
+                    KailLog.persist(app, SimulationDiagnostics.TAG,
+                        "位置模拟启动被拦截：缺少 ACCESS_FINE_LOCATION 权限", 'w')
                     GoUtils.DisplayToast(app, app.getString(R.string.vm_need_location_permission))
                     return@launch
                 }

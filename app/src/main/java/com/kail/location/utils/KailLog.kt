@@ -121,6 +121,50 @@ object KailLog {
     fun w(context: Context?, tag: String, message: String, isHighFrequency: Boolean = false) = log(context, tag, message, isHighFrequency, 'w')
     fun e(context: Context?, tag: String, message: String, isHighFrequency: Boolean = false) = log(context, tag, message, isHighFrequency, 'e')
 
+    /**
+     * 始终落盘的诊断日志：无视日志开关，强制写入文件（同时输出到 Logcat）。
+     *
+     * 用于「模拟启动诊断」这类低频、高价值、用户排障必需的信息。用户通常不会主动
+     * 打开日志开关，但模拟失败时我们仍需要在导出的日志里看到失败原因，因此这条
+     * 通道不依赖 [fileLogEnabled]/[detailedLogEnabled]。
+     */
+    fun persist(context: Context?, tag: String, message: String, level: Char = 'i') {
+        val resolvedContext = context ?: resolveContext()
+        val normalizedLevel = level.lowercaseChar()
+        val caller = getCallerInfo()
+        val thread = Thread.currentThread().name
+        val logcatTag = "$TAG_PREFIX$tag"
+        val logcatMessage = "[$thread] $caller | $message"
+
+        xposedLogMethod()?.let { method ->
+            kotlin.runCatching { method.invoke(null, "$logcatTag: $logcatMessage") }
+        }
+        when (normalizedLevel) {
+            'w' -> Log.w(logcatTag, logcatMessage)
+            'e' -> Log.e(logcatTag, logcatMessage)
+            else -> Log.i(logcatTag, logcatMessage)
+        }
+
+        if (resolvedContext != null) {
+            val levelChar = normalizedLevel.uppercaseChar()
+            val fileMessage = "$levelChar [${processName()}/$thread] $tag $caller | $message"
+            saveLogToPrivateFile(resolvedContext, fileMessage)
+        }
+    }
+
+    /**
+     * 始终落盘一整块多行诊断报告（如「模拟启动诊断」）。整块一次性写入，避免被
+     * 其它日志打散，便于用户一眼定位失败原因。无视日志开关。
+     */
+    fun persistBlock(context: Context?, tag: String, block: String) {
+        val resolvedContext = context ?: resolveContext() ?: return
+        // Logcat 按行输出，文件按整块写入。
+        block.lineSequence().forEach { line ->
+            kotlin.runCatching { Log.i("$TAG_PREFIX$tag", line) }
+        }
+        saveLogBlockToPrivateFile(resolvedContext, tag, block)
+    }
+
     /** 记录异常并附带完整堆栈，便于定位。 */
     fun e(context: Context?, tag: String, message: String, tr: Throwable, isHighFrequency: Boolean = false) {
         log(context, tag, "$message\n${stackTraceString(tr)}", isHighFrequency, 'e')
@@ -266,6 +310,33 @@ object KailLog {
                 FileOutputStream(logFile, true).use { fos ->
                     fos.write(logEntry.toByteArray())
                 }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    /** 一次性把整块诊断报告写入日志文件，块内每行带时间戳，块首尾有分隔线。 */
+    private fun saveLogBlockToPrivateFile(context: Context?, tag: String, block: String) {
+        if (context == null || context.packageName == "android") return
+        val appContext = context.applicationContext ?: context
+        logExecutor.execute {
+            val ts = System.currentTimeMillis()
+            val day = ts / 86_400_000L
+            val fileName = "kail_log_${day}.txt"
+            val builder = StringBuilder()
+            val time = formatTime(ts)
+            builder.append("$time ===== $tag BEGIN =====\n")
+            block.lineSequence().forEach { line ->
+                builder.append("$time   $line\n")
+            }
+            builder.append("$time ===== $tag END =====\n")
+            try {
+                val logDir = logDir(appContext)
+                if (!logDir.exists()) logDir.mkdirs()
+                val logFile = File(logDir, fileName)
+                rotateIfNeeded(logFile)
+                writeHeaderIfNeeded(appContext, logFile)
+                FileOutputStream(logFile, true).use { it.write(builder.toString().toByteArray()) }
             } catch (_: Exception) {
             }
         }
