@@ -461,6 +461,78 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         _selectedRouteId.value = id
     }
 
+    private val _editingRouteId = MutableStateFlow<String?>(null)
+    val editingRouteId: StateFlow<String?> = _editingRouteId.asStateFlow()
+
+    fun editRoute(id: String) {
+        _editingRouteId.value = id
+    }
+
+    fun clearEditingRoute() {
+        _editingRouteId.value = null
+    }
+
+    fun getRoutePointsById(id: String): List<LatLng> {
+        return try {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                if (obj.optLong("time", 0L).toString() == id) {
+                    val pts = obj.optJSONArray("points") ?: return emptyList()
+                    val result = mutableListOf<LatLng>()
+                    for (idx in 0 until pts.length()) {
+                        val p = pts.optJSONObject(idx) ?: continue
+                        result.add(LatLng(p.optDouble("lat"), p.optDouble("lng")))
+                    }
+                    return result
+                }
+            }
+            emptyList()
+        } catch (e: Exception) {
+            KailLog.w(getApplication(), TAG, "getRoutePointsById failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    fun updateRoute(id: String, points: List<LatLng>) {
+        viewModelScope.launch {
+            try {
+                val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+                val res = prefs.getString("saved_routes", "[]") ?: "[]"
+                val arr = JSONArray(res)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    if (obj.optLong("time", 0L).toString() == id) {
+                        obj.put("time", System.currentTimeMillis())
+                        val pts = JSONArray()
+                        points.forEach { pt ->
+                            val p = JSONObject()
+                            p.put("lat", pt.latitude)
+                            p.put("lng", pt.longitude)
+                            pts.put(p)
+                        }
+                        obj.put("points", pts)
+                        break
+                    }
+                }
+                prefs.edit().putString("saved_routes", arr.toString()).apply()
+                _historyRoutes.value = parseRoutes(arr.toString())
+                _editingRouteId.value = null
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    if (obj.optLong("time", 0L).toString() == id) {
+                        enrichNamesForRoute(obj)
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                KailLog.w(getApplication(), TAG, "updateRoute failed: ${e.message}")
+            }
+        }
+    }
+
     private fun loadSettings() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
         val speed = prefs.getFloat("route_sim_speed", _settings.value.speed)

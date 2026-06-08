@@ -74,6 +74,7 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
         setContent {
             locationTheme {
                 var currentScreen by remember { mutableStateOf(Screen.LIST) }
+                var editingRouteId by remember { mutableStateOf<String?>(null) }
                 val runMode by viewModel.runMode.collectAsState()
                 
                 val onNavigate: (Int) -> Unit = { id ->
@@ -162,7 +163,16 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
                             startActivity(android.content.Intent(this@RouteSimulationActivity, com.kail.location.views.xposedsettings.XposedSettingsActivity::class.java))
                         },
                         onNavigate = onNavigate,
-                            onAddRouteClick = { currentScreen = Screen.PLAN },
+                            onAddRouteClick = {
+                                editingRouteId = null
+                                mBaiduMap?.clear()
+                                currentScreen = Screen.PLAN
+                            },
+                            onEditRoute = { routeId ->
+                                editingRouteId = routeId
+                                mBaiduMap?.clear()
+                                currentScreen = Screen.PLAN
+                            },
                             appVersion = version,
                             onStartSimulation = { settings ->
                                 viewModel.startSimulation()
@@ -173,10 +183,20 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
                         )
                     }
                     Screen.PLAN -> {
-                        RoutePlanScreen(
-                            mapView = mMapView,
-                            onBackClick = { currentScreen = Screen.LIST },
-                            onConfirmClick = { currentScreen = Screen.LIST },
+                        key(editingRouteId) {
+                            val initialWp = editingRouteId?.let { viewModel.getRoutePointsById(it) } ?: emptyList()
+                            RoutePlanScreen(
+                                mapView = mMapView,
+                                onBackClick = {
+                                    editingRouteId = null
+                                    currentScreen = Screen.LIST
+                                },
+                                onConfirmClick = {
+                                    editingRouteId = null
+                                    currentScreen = Screen.LIST
+                                },
+                                editingRouteId = editingRouteId,
+                                initialWaypoints = initialWp,
                             onLocateClick = {
                                 mLocClient?.requestLocation()
                                 val lat = mCurrentLat
@@ -211,6 +231,7 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
                                 }
                             }
                         )
+                        }
                     }
                 }
             }

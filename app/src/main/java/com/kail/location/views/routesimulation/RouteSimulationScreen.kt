@@ -58,6 +58,7 @@ fun RouteSimulationScreen(
     onXposedSettingsSelected: () -> Unit = {},
     onNavigate: (Int) -> Unit,
     onAddRouteClick: () -> Unit,
+    onEditRoute: (String) -> Unit = {},
     appVersion: String,
     onStartSimulation: (SimulationSettings) -> Unit,
     onStopSimulation: () -> Unit
@@ -227,6 +228,9 @@ fun RouteSimulationScreen(
                                         Text(text = route.endName, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                     }
                                     Row {
+                                        IconButton(onClick = { onEditRoute(route.id) }) {
+                                            Icon(Icons.Default.Place, contentDescription = "Edit Route", tint = MaterialTheme.colorScheme.primary)
+                                        }
                                         IconButton(onClick = { renameTarget = route; renameText = route.startName }) {
                                             Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
                                         }

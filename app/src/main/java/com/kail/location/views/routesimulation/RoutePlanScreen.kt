@@ -83,20 +83,22 @@ fun RoutePlanScreen(
     runMode: String,
     onRunModeChange: (String) -> Unit,
     onDeveloperModeSelected: () -> Unit = {},
-    onXposedSettingsSelected: () -> Unit = {}
+    onXposedSettingsSelected: () -> Unit = {},
+    editingRouteId: String? = null,
+    initialWaypoints: List<LatLng> = emptyList()
 ) {
-    var startPoint by remember { mutableStateOf("") }
-    var endPoint by remember { mutableStateOf("") }
-    var selectingStart by remember { mutableStateOf(true) }
+    var startPoint by remember { mutableStateOf(initialWaypoints.firstOrNull()?.let { "${it.latitude},${it.longitude}" } ?: "") }
+    var endPoint by remember { mutableStateOf(initialWaypoints.lastOrNull()?.let { "${it.latitude},${it.longitude}" } ?: "") }
+    var selectingStart by remember { mutableStateOf(initialWaypoints.isEmpty()) }
     val context = LocalContext.current
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
     var isSatellite by remember { mutableStateOf(false) }
-    val waypoints = remember { mutableStateListOf<LatLng>() }
+    val waypoints = remember { mutableStateListOf<LatLng>().apply { addAll(initialWaypoints) } }
     var polylineOverlay by remember { mutableStateOf<Overlay?>(null) }
     var dashedOverlay by remember { mutableStateOf<Overlay?>(null) }
-    var markingPhase by remember { mutableStateOf(MarkingPhase.Idle) }
+    var markingPhase by remember { mutableStateOf(if (initialWaypoints.isNotEmpty()) MarkingPhase.Active else MarkingPhase.Idle) }
     var isDragging by remember { mutableStateOf(false) }
-    var currentAnchor by remember { mutableStateOf<LatLng?>(null) }
+    var currentAnchor by remember { mutableStateOf(initialWaypoints.lastOrNull()) }
     var hasCentered by remember { mutableStateOf(false) }
     
     // Marker state
@@ -122,6 +124,7 @@ fun RoutePlanScreen(
         try {
             val map = mapView?.map
             if (map != null) {
+                map.clear()
                 map.isMyLocationEnabled = true
                 map.setMyLocationConfiguration(
                     com.baidu.mapapi.map.MyLocationConfiguration(
@@ -210,10 +213,11 @@ fun RoutePlanScreen(
         try {
             val map = mapView?.map
             if (map != null) {
+                val center = if (initialWaypoints.isNotEmpty()) initialWaypoints.last() else currentLatLng
                 val ll = currentLatLng
-                if (!hasCentered && ll != null && !(ll.latitude == 0.0 && ll.longitude == 0.0)) {
-                    map.animateMapStatus(MapStatusUpdateFactory.newLatLng(ll))
-                    KailLog.i(context, "RoutePlanScreen", "Center to current $ll")
+                if (!hasCentered && center != null && !(center.latitude == 0.0 && center.longitude == 0.0)) {
+                    map.animateMapStatus(MapStatusUpdateFactory.newLatLng(center))
+                    KailLog.i(context, "RoutePlanScreen", "Center to $center")
                     hasCentered = true
                 }
                 
@@ -243,6 +247,8 @@ fun RoutePlanScreen(
             endMarkerOverlay?.remove()
             startMarkerOverlay = null
             endMarkerOverlay = null
+            polylineOverlay?.remove()
+            polylineOverlay = null
 
             if (waypoints.isNotEmpty()) {
                 val start = waypoints.first()
@@ -252,8 +258,20 @@ fun RoutePlanScreen(
                         MarkerOptions().position(start).icon(startDesc).zIndex(8).draggable(false)
                     )
                 }
+                if (waypoints.size > 1) {
+                    val end = waypoints.last()
+                    val endDesc = MapUtils.bitmapDescriptorFromVector(context, R.drawable.icon_gcoding, AndroidColor.RED)
+                    if (endDesc != null) {
+                        endMarkerOverlay = map.addOverlay(
+                            MarkerOptions().position(end).icon(endDesc).zIndex(8).draggable(false)
+                        )
+                    }
+                }
+                if (waypoints.size >= 2) {
+                    val polyOpt = PolylineOptions().width(8).color(AndroidColor.BLUE).points(waypoints.toList())
+                    polylineOverlay = map.addOverlay(polyOpt)
+                }
             }
-
         }
     }
 
@@ -545,8 +563,13 @@ fun RoutePlanScreen(
                         onClick = {
                             try {
                                 if (waypoints.size >= 2) {
-                                    viewModel.saveRoute(waypoints.toList())
-                                    KailLog.i(context, "RoutePlanScreen", "Saved route with ${waypoints.size} points via ViewModel")
+                                    if (editingRouteId != null) {
+                                        viewModel.updateRoute(editingRouteId, waypoints.toList())
+                                        KailLog.i(context, "RoutePlanScreen", "Updated route ${editingRouteId} with ${waypoints.size} points")
+                                    } else {
+                                        viewModel.saveRoute(waypoints.toList())
+                                        KailLog.i(context, "RoutePlanScreen", "Saved route with ${waypoints.size} points via ViewModel")
+                                    }
                                 }
                                 onConfirmClick()
                             } catch (e: Exception) {
