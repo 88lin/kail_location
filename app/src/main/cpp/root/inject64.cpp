@@ -218,6 +218,11 @@ static uint64_t findLibraryBaseAddress(const char *libraryPath, int pid) {
     return 0;
   }
 
+  // Extract basename for fallback matching (handles path resolution differences
+  // on Android 16+ where loaded library paths in maps may differ from dlopen arg)
+  const char *baseName = strrchr(libraryPath, '/');
+  baseName = baseName ? baseName + 1 : libraryPath;
+
   uint64_t base = 0;
   char line[1024] = {0};
   while (fgets(line, sizeof(line), fp)) {
@@ -226,6 +231,19 @@ static uint64_t findLibraryBaseAddress(const char *libraryPath, int pid) {
       break;
     }
   }
+
+  // Fallback: match by basename only (catches cases where maps shows a
+  // resolved/symlinked path different from the dlopen argument)
+  if (!base && baseName) {
+    rewind(fp);
+    while (fgets(line, sizeof(line), fp)) {
+      if (strstr(line, baseName) && strchr(line, '/')) {
+        base = strtoul(line, nullptr, 16);
+        break;
+      }
+    }
+  }
+
   fclose(fp);
   return base;
 }
@@ -238,8 +256,11 @@ static uint64_t findLibraryBaseAddress(const char *libraryPath, int pid) {
 static uint64_t resolveRemoteSymbolAddress(const char *libraryPath, uint64_t localAddr) {
   uint64_t localBase  = findLibraryBaseAddress(libraryPath, getpid());
   uint64_t remoteBase = findLibraryBaseAddress(libraryPath, gTargetPid);
-  if (!localAddr || !localBase || !remoteBase)
+  if (!localAddr || !localBase || !remoteBase) {
+    KLOGE(kInjectorLogTag, "resolveRemoteSymbolAddress: localAddr=0x%llx localBase=0x%llx remoteBase=0x%llx path=%s",
+          (unsigned long long)localAddr, (unsigned long long)localBase, (unsigned long long)remoteBase, libraryPath);
     return 0;
+  }
   return localAddr - localBase + remoteBase;
 }
 
@@ -470,6 +491,7 @@ static int injectLibraryIntoProcess(int pid, const char *libraryPath, const char
   KLOGI(kInjectorLogTag, "remote dlopen returned 0x%llx", (unsigned long long)remoteHandle);
   printf("inject diag: remotePath=0x%llx remoteHandle=0x%llx\n",
          (unsigned long long)remotePath, (unsigned long long)remoteHandle);
+
   callRemoteFunction(gRemoteFree, 1, remotePath);
 
   int result;
@@ -480,6 +502,22 @@ static int injectLibraryIntoProcess(int pid, const char *libraryPath, const char
     KLOGI(kInjectorLogTag, "doRun local=%p remote=0x%llx", doRunLocal, (unsigned long long)doRunRemote);
     printf("inject diag: doRunLocal=%p doRunRemote=0x%llx\n",
            doRunLocal, (unsigned long long)doRunRemote);
+
+    // Even when remoteHandle is non-zero, the remote dlopen might have failed
+    // silently (e.g. garbage return from callRemoteFunction on hardened Android).
+    // Read dlerror to detect this case.
+    uint64_t errPtr = callRemoteFunction(gRemoteDlerror, 0);
+    waitForRemoteStop();
+    char errbuf[1024] = {0};
+    for (size_t off = 0; off < sizeof(errbuf) - 1; off += 8) {
+      long word = ptraceWithRetry("dlerror", PTRACE_PEEKTEXT, (uintptr_t)(errPtr + off), 0);
+      if (word == -1) break;
+      *(uint64_t *)&errbuf[off] = (uint64_t)word;
+    }
+    if (errbuf[0]) {
+      KLOGW(kInjectorLogTag, "remote dlerror: %s", errbuf);
+      printf("inject diag: remote dlerror: %s\n", errbuf);
+    }
 
     result = 1;
     if (doRunLocal && doRunRemote) {

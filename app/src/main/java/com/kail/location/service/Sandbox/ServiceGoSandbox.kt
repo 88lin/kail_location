@@ -383,6 +383,7 @@ class ServiceGoSandbox : Service() {
         isStop = false
         if (locationLoopStarted) return
         locationLoopStarted = true
+        broadcastStatus()
         mLocHandler.sendEmptyMessage(HANDLER_MSG_ID)
     }
 

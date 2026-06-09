@@ -138,9 +138,26 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         }
     }
 
+    private BLocationConfig resolveConfig(int userId, String pkg) {
+        BLocationConfig config = getOrCreateConfig(userId, pkg);
+        if (config.pattern == BLocationManager.CLOSE_MODE) {
+            // 没有针对该包名的配置时，回退到空字符串包名的全局默认设置
+            synchronized (mLocationConfigs) {
+                HashMap<String, BLocationConfig> pkgs = mLocationConfigs.get(userId);
+                if (pkgs != null) {
+                    BLocationConfig globalDefault = pkgs.get("");
+                    if (globalDefault != null && globalDefault.pattern == BLocationManager.GLOBAL_MODE) {
+                        return globalDefault;
+                    }
+                }
+            }
+        }
+        return config;
+    }
+
     @Override
     public BCell getCell(int userId, String pkg) {
-        BLocationConfig config = getOrCreateConfig(userId, pkg);
+        BLocationConfig config = resolveConfig(userId, pkg);
         switch (config.pattern) {
             case BLocationManager.OWN_MODE:
                 return config.cell;
@@ -154,7 +171,7 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
 
     @Override
     public List<BCell> getAllCell(int userId, String pkg) {
-        BLocationConfig config = getOrCreateConfig(userId, pkg);
+        BLocationConfig config = resolveConfig(userId, pkg);
         switch (config.pattern) {
             case BLocationManager.OWN_MODE:
                 return config.allCell;
@@ -176,7 +193,7 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
 
     @Override
     public BLocation getLocation(int userId, String pkg) {
-        BLocationConfig config = getOrCreateConfig(userId, pkg);
+        BLocationConfig config = resolveConfig(userId, pkg);
         switch (config.pattern) {
             case BLocationManager.OWN_MODE:
                 return config.location;

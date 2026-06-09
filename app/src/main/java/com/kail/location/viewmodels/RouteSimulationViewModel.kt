@@ -35,6 +35,7 @@ import androidx.core.content.ContextCompat
 import com.kail.location.R
 import com.kail.location.service.Root.ServiceGoRoot
 import com.kail.location.service.Developer.ServiceGoDeveloper
+import com.kail.location.service.Sandbox.ServiceGoSandbox
 import com.kail.location.service.Xposed.ServiceGoXposed
 import com.kail.location.utils.service.ServiceConstants
 import kotlinx.coroutines.delay
@@ -133,6 +134,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
         private fun getServiceClass(mode: String) = when (mode) {
             "root" -> ServiceGoRoot::class.java
+            "sandbox" -> ServiceGoSandbox::class.java
             "xposed" -> ServiceGoXposed::class.java
             else -> ServiceGoDeveloper::class.java
         }

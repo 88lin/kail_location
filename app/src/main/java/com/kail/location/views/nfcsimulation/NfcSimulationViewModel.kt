@@ -352,10 +352,22 @@ class NfcSimulationViewModel : ViewModel() {
             try {
                 val result = dispatchNfc(context, _mockUrl.value, _mockPackageName.value)
                 _sendResult.value = result
+                saveManuallyEnteredToHistory()
             } catch (e: Exception) {
                 KailLog.w(null, TAG, "sendMockNfc: dispatch mock NFC failed: ${e.message}")
                 _sendResult.value = context.getString(R.string.nfc_sim_send_failed, e.message)
             }
+        }
+    }
+
+    private fun saveManuallyEnteredToHistory() {
+        val url = _mockUrl.value.trim()
+        val pkg = _mockPackageName.value.trim()
+        if (url.isEmpty() && pkg.isEmpty()) return
+        val content = if (pkg.isEmpty()) url else "$url$pkg"
+        val existingContent = _historyRecords.value.map { it.content }
+        if (!existingContent.contains(content)) {
+            addToHistory(content, "manual")
         }
     }
     
