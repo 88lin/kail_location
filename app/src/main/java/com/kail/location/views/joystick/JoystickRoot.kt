@@ -1,6 +1,7 @@
 package com.kail.location.views.joystick
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.baidu.mapapi.map.MapStatusUpdateFactory
@@ -19,9 +20,15 @@ fun JoystickRoot(
     actionListener: JoystickViewModel.ActionListener,
     onMoveInfo: (Boolean, Double, Double) -> Unit,
     onWindowDrag: (Float, Float) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onFocusModeChanged: (Boolean) -> Unit = {}
 ) {
     val windowType by viewModel.windowType.collectAsState()
+
+    LaunchedEffect(windowType) {
+        val needsFocus = windowType == JoystickViewModel.WindowType.HISTORY || windowType == JoystickViewModel.WindowType.MAP
+        onFocusModeChanged(needsFocus)
+    }
     val isPaused by viewModel.isRoutePaused.collectAsState()
     val routeSpeed by viewModel.routeSpeed.collectAsState()
     val routeProgress by viewModel.routeProgress.collectAsState()
@@ -55,7 +62,7 @@ fun JoystickRoot(
                         val lat = item[com.kail.location.viewmodels.LocationPickerViewModel.POI_LATITUDE].toString().toDouble()
                         val lng = item[com.kail.location.viewmodels.LocationPickerViewModel.POI_LONGITUDE].toString().toDouble()
                         viewModel.updateMarkLocation(LatLng(lat, lng))
-                        viewModel.confirmTeleport(actionListener)
+                        mapView.map.animateMapStatus(MapStatusUpdateFactory.newLatLng(LatLng(lat, lng)))
                     }
                 )
             }

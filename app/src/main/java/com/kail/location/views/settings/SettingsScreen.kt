@@ -266,28 +266,8 @@ fun SettingsScreen(
                 summary = stringResource(R.string.setting_natural_jitter_summary)
             )
 
-            // ===== Group: 日志/其他 =====
-            PreferenceCategory(title = stringResource(R.string.setting_group_other))
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_selinux_permissive),
-                checked = selinuxPermissiveEnabled,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_SELINUX_PERMISSIVE, it) },
-                summary = stringResource(R.string.setting_selinux_permissive_summary)
-            )
-
-            EditTextPreference(
-                title = stringResource(R.string.setting_baidu_key),
-                value = baiduMapKey,
-                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_BAIDU_MAP_KEY, it) }
-            )
-
-            EditTextPreference(
-                title = stringResource(R.string.setting_opencellid_key),
-                value = opencellidApiKey,
-                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_OPENCELLID_API_KEY, it) },
-                description = stringResource(R.string.setting_opencellid_key_summary)
-            )
+            // ===== Group: 日志 =====
+            PreferenceCategory(title = stringResource(R.string.setting_group_log))
 
             SwitchPreference(
                 title = stringResource(R.string.setting_enable_log),
@@ -316,6 +296,29 @@ fun SettingsScreen(
                     logCacheSize = KailLog.getLogCacheSizeBytes(context)
                     showClearLogDialog = true
                 }
+            )
+
+            // ===== Group: 其他 =====
+            PreferenceCategory(title = stringResource(R.string.setting_group_other))
+
+            SwitchPreference(
+                title = stringResource(R.string.setting_selinux_permissive),
+                checked = selinuxPermissiveEnabled,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_SELINUX_PERMISSIVE, it) },
+                summary = stringResource(R.string.setting_selinux_permissive_summary)
+            )
+
+            EditTextPreference(
+                title = stringResource(R.string.setting_baidu_key),
+                value = baiduMapKey,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_BAIDU_MAP_KEY, it) }
+            )
+
+            EditTextPreference(
+                title = stringResource(R.string.setting_opencellid_key),
+                value = opencellidApiKey,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_OPENCELLID_API_KEY, it) },
+                description = stringResource(R.string.setting_opencellid_key_summary)
             )
 
             EditTextPreference(

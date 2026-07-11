@@ -5,6 +5,9 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.kail.location.utils.KailLog
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * 历史定位数据的 SQLite 辅助类。
@@ -40,6 +43,15 @@ class DataBaseHistoryLocation(context: Context) : SQLiteOpenHelper(context, DB_N
     }
 
     companion object {
+        @Volatile
+        var refreshVersion = 0L
+        private val _refreshSignal = MutableStateFlow(0L)
+        val refreshSignal: StateFlow<Long> = _refreshSignal.asStateFlow()
+
+        fun notifyChanged() {
+            refreshVersion = System.currentTimeMillis()
+            _refreshSignal.value = refreshVersion
+        }
         const val TABLE_NAME = "HistoryLocation"
         const val DB_COLUMN_ID = "DB_COLUMN_ID"
         const val DB_COLUMN_LOCATION = "DB_COLUMN_LOCATION"

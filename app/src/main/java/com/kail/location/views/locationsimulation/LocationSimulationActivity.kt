@@ -22,6 +22,8 @@ import com.kail.location.views.navigationsimulation.NavigationSimulationActivity
 import com.kail.location.utils.GoUtils
 import com.kail.location.views.common.AnnouncementDialog
 import com.kail.location.views.common.UpdateDownloadDialog
+import com.kail.location.repositories.DataBaseHistoryLocation
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.LaunchedEffect
 
 
@@ -66,6 +68,12 @@ class LocationSimulationActivity : BaseActivity() {
                 LaunchedEffect(Unit) {
                     viewModel.checkUpdate(this@LocationSimulationActivity, true)
                     viewModel.checkAnnouncement()
+                }
+
+                LaunchedEffect(Unit) {
+                    DataBaseHistoryLocation.refreshSignal.collectLatest {
+                        viewModel.loadRecords()
+                    }
                 }
 
                 LocationSimulationScreen(

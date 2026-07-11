@@ -89,7 +89,15 @@ class JoystickWindowManager(
                     actionListener = listener,
                     onMoveInfo = { auto, angle, r -> processDirection(auto, angle, r) },
                     onWindowDrag = { dx, dy -> updateWindowPosition(dx, dy) },
-                    onClose = { hide() }
+                    onClose = { hide() },
+                    onFocusModeChanged = { needsFocus ->
+                        if (needsFocus) {
+                            windowParams.flags = windowParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                        } else {
+                            windowParams.flags = windowParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        }
+                        try { windowManager.updateViewLayout(rootComposeView, windowParams) } catch (_: Exception) {}
+                    }
                 )
             }
         }
@@ -100,13 +108,32 @@ class JoystickWindowManager(
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val mapZoom = prefs.getString(SettingsViewModel.KEY_MAP_ZOOM, "17")?.toFloatOrNull() ?: 17f
 
+            fun updateMarkerAndBlueDot(pt: LatLng) {
+                val views = listOfNotNull(mapView, routeMapView)
+                views.forEach { mv ->
+                    try {
+                        mv.map.clear()
+                        mv.map.addOverlay(
+                            com.baidu.mapapi.map.MarkerOptions().position(pt)
+                                .icon(com.baidu.mapapi.map.BitmapDescriptorFactory.fromResource(com.kail.location.R.drawable.ic_position))
+                        )
+                        mv.map.setMyLocationData(
+                            com.baidu.mapapi.map.MyLocationData.Builder().latitude(pt.latitude).longitude(pt.longitude).build()
+                        )
+                    } catch (_: Exception) {}
+                }
+            }
+
             val clickListener = object : BaiduMap.OnMapClickListener {
                 override fun onMapClick(point: LatLng) {
+                    updateMarkerAndBlueDot(point)
                     viewModel.updateMarkLocation(point)
                     viewModel.confirmTeleport(listener)
                 }
                 override fun onMapPoiClick(poi: com.baidu.mapapi.map.MapPoi) {
-                    viewModel.updateMarkLocation(poi.position)
+                    val pt = poi.position
+                    updateMarkerAndBlueDot(pt)
+                    viewModel.updateMarkLocation(pt)
                     viewModel.confirmTeleport(listener)
                 }
             }

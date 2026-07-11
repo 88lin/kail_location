@@ -3,8 +3,10 @@ package com.kail.location.views.joystick
 import android.view.View
 import android.widget.TextView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,6 +29,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,11 +42,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.baidu.mapapi.map.BitmapDescriptorFactory
 import com.baidu.mapapi.map.MapStatusUpdateFactory
 import com.baidu.mapapi.map.MapView
 import com.baidu.mapapi.map.MarkerOptions
+import com.baidu.mapapi.map.MyLocationData
 import com.baidu.mapapi.model.LatLng
 import com.kail.location.R
 import com.kail.location.viewmodels.SettingsViewModel
@@ -94,100 +99,151 @@ fun JoyStickHistoryOverlay(
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .width(winW)
             .height(winH)
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
-            .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    onWindowDrag(dragAmount.x, dragAmount.y)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header (draggable area)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(30.dp)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            onWindowDrag(dragAmount.x, dragAmount.y)
+                        }
+                    }
+            ) {
+                Text(
+                    text = stringResource(R.string.joystick_history_tips),
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
                 }
             }
-    ) {
-        // Header
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .background(MaterialTheme.colorScheme.primary)
-        ) {
-            Text(
-                text = stringResource(R.string.joystick_history_tips),
-                modifier = Modifier.align(Alignment.Center),
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White
-            )
-            IconButton(
-                onClick = onClose,
-                modifier = Modifier.align(Alignment.CenterEnd)
-            ) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-            }
-        }
 
         // Search
-        OutlinedTextField(
+        val searchTextStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 16.sp)
+        BasicTextField(
             value = searchQuery,
             onValueChange = {
                 searchQuery = it
                 onSearch(it)
             },
+            singleLine = true,
+            textStyle = searchTextStyle,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            placeholder = { Text(stringResource(R.string.app_search_tips)) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true,
-            shape = RoundedCornerShape(8.dp)
+                .padding(start = 8.dp, end = 8.dp)
+                .height(32.dp)
+                .border(1.dp, Color.LightGray, RoundedCornerShape(6.dp))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            decorationBox = { innerTextField ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxHeight()) {
+                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (searchQuery.isEmpty()) {
+                            Text(stringResource(R.string.app_search_tips), style = searchTextStyle, color = Color.Gray)
+                        }
+                        innerTextField()
+                    }
+                }
+            }
         )
 
-        // List
-        if (filteredRecords.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.history_idle), color = Color.Gray)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
-                items(filteredRecords) { record ->
-                    val id = (record[HistoryActivity.KEY_ID] as? String) ?: ""
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { onSelectRecord(record) }.padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            HistoryItem(record = record, onClick = { onSelectRecord(record) })
+            // List
+            if (filteredRecords.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.history_idle), color = Color.Gray)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    items(filteredRecords) { record ->
+                        val id = (record[HistoryActivity.KEY_ID] as? String) ?: ""
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { onSelectRecord(record) }.padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                HistoryItem(record = record, onClick = { onSelectRecord(record) })
+                            }
+                            val isFav = (record["isFavorite"] as? Boolean) ?: false
+                            IconButton(onClick = { onToggleFavorite(id) }) {
+                                Icon(Icons.Default.Star, contentDescription = "Favorite", tint = if (isFav) Color(0xFFFFB300) else Color.Gray, modifier = Modifier.graphicsLayer(alpha = if (isFav) 1f else 0.4f))
+                            }
+                            IconButton(onClick = { renameTarget = id; renameText = (record[HistoryActivity.KEY_LOCATION] as? String) ?: "" }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = { onDelete(id) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                            }
                         }
-                        val isFav = (record["isFavorite"] as? Boolean) ?: false
-                        IconButton(onClick = { onToggleFavorite(id) }) {
-                            Icon(Icons.Default.Star, contentDescription = "Favorite", tint = if (isFav) Color(0xFFFFB300) else Color.Gray, modifier = Modifier.graphicsLayer(alpha = if (isFav) 1f else 0.4f))
-                        }
-                        IconButton(onClick = { renameTarget = id; renameText = (record[HistoryActivity.KEY_LOCATION] as? String) ?: "" }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(onClick = { onDelete(id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
-                        }
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = Color.LightGray.copy(alpha = 0.5f))
                     }
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = Color.LightGray.copy(alpha = 0.5f))
                 }
             }
         }
-    }
 
-    if (renameTarget != null) {
-        AlertDialog(
-            onDismissRequest = { renameTarget = null },
-            title = { Text(stringResource(R.string.location_rename_title)) },
-            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }) },
-            confirmButton = { TextButton(onClick = { onRename(renameTarget!!, renameText); renameTarget = null }) { Text(stringResource(R.string.common_ok)) } },
-            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.common_cancel)) } }
-        )
+        if (renameTarget != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+                    .clickable { renameTarget = null },
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier
+                        .widthIn(min = 240.dp, max = 300.dp)
+                        .clickable { },
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(stringResource(R.string.location_rename_title), style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedTextField(
+                            value = renameText,
+                            onValueChange = { renameText = it },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { renameTarget = null }) {
+                                Text(stringResource(R.string.common_cancel))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TextButton(onClick = { onRename(renameTarget!!, renameText); renameTarget = null }) {
+                                Text(stringResource(R.string.common_ok))
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -244,14 +300,20 @@ fun JoyStickMapOverlay(
         (prefs.getString(SettingsViewModel.KEY_FLOATING_WINDOW_HEIGHT, "500") ?: "500").toIntOrNull() ?: 500
     }.dp
 
+    fun initMapLocation(loc: LatLng) {
+        try {
+            mapView.map.clear()
+            mapView.map.addOverlay(
+                MarkerOptions().position(loc).icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_position))
+            )
+            mapView.map.setMyLocationData(MyLocationData.Builder().latitude(loc.latitude).longitude(loc.longitude).build())
+        } catch (_: Exception) {}
+    }
+
     LaunchedEffect(Unit) {
         if (currentLocation.latitude != 0.0 || currentLocation.longitude != 0.0) {
-            try {
-                mapView.map.setMapStatus(MapStatusUpdateFactory.newLatLng(currentLocation))
-                mapView.map.addOverlay(
-                    MarkerOptions().position(currentLocation).icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_position))
-                )
-            } catch (_: Exception) {}
+            mapView.map.setMapStatus(MapStatusUpdateFactory.newLatLng(currentLocation))
+            initMapLocation(currentLocation)
         }
     }
 
@@ -261,19 +323,19 @@ fun JoyStickMapOverlay(
             .height(winH)
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
-            .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    onWindowDrag(dragAmount.x, dragAmount.y)
-                }
-            }
     ) {
-        // Header
+        // Header (draggable area)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(30.dp)
                 .background(MaterialTheme.colorScheme.primary)
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        onWindowDrag(dragAmount.x, dragAmount.y)
+                    }
+                }
         ) {
             Text(
                 text = stringResource(R.string.joystick_map_tips),
@@ -290,20 +352,34 @@ fun JoyStickMapOverlay(
         }
 
         // Search
-        OutlinedTextField(
+        val searchTextStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 16.sp)
+        BasicTextField(
             value = searchQuery,
             onValueChange = {
                 searchQuery = it
                 onSearch(it)
                 showSearchResults = it.isNotEmpty()
             },
+            singleLine = true,
+            textStyle = searchTextStyle,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            placeholder = { Text(stringResource(R.string.app_search_tips)) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true,
-            shape = RoundedCornerShape(8.dp)
+                .padding(start = 8.dp, end = 8.dp)
+                .height(32.dp)
+                .border(1.dp, Color.LightGray, RoundedCornerShape(6.dp))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            decorationBox = { innerTextField ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxHeight()) {
+                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (searchQuery.isEmpty()) {
+                            Text(stringResource(R.string.app_search_tips), style = searchTextStyle, color = Color.Gray)
+                        }
+                        innerTextField()
+                    }
+                }
+            }
         )
 
         Box(modifier = Modifier.fillMaxSize()) {

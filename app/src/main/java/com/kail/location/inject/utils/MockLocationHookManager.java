@@ -725,7 +725,11 @@ public class MockLocationHookManager {
             if (list != null && !list.isEmpty() && list.get(0) == null) {
                 list = null;
             }
-            onLocationChanged_bak(obj, list, obj2);
+            try {
+                onLocationChanged_bak(obj, list, obj2);
+            } catch (Throwable t) {
+                MockLocationHookManager.log("onLocationChanged_bak crashed: " + t.getMessage());
+            }
         }
 
         public static void onLocationChanged2(Object obj, List<Location> list, Object obj2) {
@@ -775,7 +779,11 @@ public class MockLocationHookManager {
             if (list != null && !list.isEmpty() && list.get(0) == null) {
                 list = null;
             }
-            onLocationChanged2_bak(obj, list, obj2);
+            try {
+                onLocationChanged2_bak(obj, list, obj2);
+            } catch (Throwable t) {
+                MockLocationHookManager.log("onLocationChanged2_bak crashed: " + t.getMessage());
+            }
         }
 
         public static void onLocationChanged2_bak(Object obj, List<Location> list, Object obj2) {

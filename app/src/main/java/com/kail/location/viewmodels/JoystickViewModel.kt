@@ -46,6 +46,8 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
     private val _markLocation = MutableStateFlow<LatLng?>(null)
     val markLocation: StateFlow<LatLng?> = _markLocation.asStateFlow()
 
+
+
     private val _speed = MutableStateFlow(1.2)
     val speed: StateFlow<Double> = _speed.asStateFlow()
 
@@ -133,7 +135,7 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
     fun search(query: String, city: String?) {
         if (query.isNotEmpty()) {
             suggestionSearch.requestSuggestion(
-                SuggestionSearchOption().keyword(query).city(city ?: "")
+                SuggestionSearchOption().keyword(query).city(city ?: getApplication<Application>().getString(R.string.vm_search_city))
             )
         } else {
             _searchResults.value = emptyList()
@@ -195,7 +197,24 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
         if (mark != null) {
             val wgs = MapUtils.bd2wgs(mark.longitude, mark.latitude)
             actionListener.onPositionInfo(wgs[0], wgs[1], _altitude.value)
+            saveLocationToHistory(wgs[0], wgs[1])
             _markLocation.value = null
+        }
+    }
+
+    private fun saveLocationToHistory(lng: Double, lat: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val bd = MapUtils.wgs2bd(lng, lat)
+                val dbHelper = DataBaseHistoryLocation(getApplication())
+                val db = dbHelper.writableDatabase
+                DataBaseHistoryLocation.addHistoryLocation(
+                    db, "", lng.toString(), lat.toString(),
+                    (System.currentTimeMillis() / 1000).toString(),
+                    bd[0].toString(), bd[1].toString()
+                )
+                db.close()
+            } catch (_: Exception) {}
         }
     }
 
@@ -223,6 +242,7 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
                 val db = dbHelper.writableDatabase
                 DataBaseHistoryLocation.updateFavorite(db, id.toIntOrNull() ?: return@launch, !current)
                 db.close()
+                DataBaseHistoryLocation.notifyChanged()
                 fetchHistoryRecords()
             } catch (_: Exception) {}
         }
@@ -235,6 +255,7 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
                 val db = dbHelper.writableDatabase
                 DataBaseHistoryLocation.updateHistoryLocation(db, id, newName)
                 db.close()
+                DataBaseHistoryLocation.notifyChanged()
                 fetchHistoryRecords()
             } catch (_: Exception) {}
         }
@@ -247,6 +268,7 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
                 val db = dbHelper.writableDatabase
                 db.delete(DataBaseHistoryLocation.TABLE_NAME, "${DataBaseHistoryLocation.DB_COLUMN_ID}=?", arrayOf(id))
                 db.close()
+                DataBaseHistoryLocation.notifyChanged()
                 fetchHistoryRecords()
             } catch (_: Exception) {}
         }
