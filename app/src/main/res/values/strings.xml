@@ -287,6 +287,10 @@
 
     <!-- 数据导出 / 导入 -->
     <string name="setting_group_data_transfer">数据备份</string>
+    <string name="setting_group_personalization">个性化</string>
+    <string name="setting_floating_window_size">浮窗大小</string>
+    <string name="setting_floating_window_width">浮窗宽度</string>
+    <string name="setting_floating_window_height">浮窗高度</string>
     <string name="data_transfer_group_general">通用（所有模式）</string>
     <string name="setting_export_data">导出数据</string>
     <string name="setting_export_data_summary">将所选菜单的设置导出为 .bak 备份文件</string>

@@ -3,7 +3,9 @@ package com.kail.location.views.joystick
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.baidu.mapapi.map.MapStatusUpdateFactory
 import com.baidu.mapapi.map.MapView
+import com.baidu.mapapi.model.LatLng
 import com.kail.location.viewmodels.JoystickViewModel
 
 /**
@@ -37,20 +39,23 @@ fun JoystickRoot(
         }
         JoystickViewModel.WindowType.MAP -> {
             if (mapView != null) {
+                val currentLoc by viewModel.currentLocation.collectAsState()
                 JoyStickMapOverlay(
                     mapView = mapView,
+                    currentLocation = currentLoc,
                     onClose = { viewModel.setWindowType(JoystickViewModel.WindowType.JOYSTICK) },
                     onWindowDrag = onWindowDrag,
                     onGo = { viewModel.confirmTeleport(actionListener) },
                     onBackToCurrent = {
-                        // Centering logic handled by MapView/BaiduMap in the manager
+                        mapView.map.animateMapStatus(MapStatusUpdateFactory.newLatLng(currentLoc))
                     },
                     onSearch = { query -> viewModel.search(query, null) },
                     searchResults = searchResults,
                     onSelectSearchResult = { item ->
                         val lat = item[com.kail.location.viewmodels.LocationPickerViewModel.POI_LATITUDE].toString().toDouble()
                         val lng = item[com.kail.location.viewmodels.LocationPickerViewModel.POI_LONGITUDE].toString().toDouble()
-                        viewModel.updateMarkLocation(com.baidu.mapapi.model.LatLng(lat, lng))
+                        viewModel.updateMarkLocation(LatLng(lat, lng))
+                        viewModel.confirmTeleport(actionListener)
                     }
                 )
             }
@@ -61,7 +66,10 @@ fun JoystickRoot(
                 onClose = { viewModel.setWindowType(JoystickViewModel.WindowType.JOYSTICK) },
                 onWindowDrag = onWindowDrag,
                 onSelectRecord = { record -> viewModel.selectHistoryRecord(record, actionListener) },
-                onSearch = { /* Search logic if needed */ }
+                onSearch = { },
+                onToggleFavorite = { id -> viewModel.toggleHistoryFavorite(id) },
+                onRename = { id, name -> viewModel.renameHistoryRecord(id, name) },
+                onDelete = { id -> viewModel.deleteHistoryRecord(id) }
             )
         }
         JoystickViewModel.WindowType.ROUTE_CONTROL -> {

@@ -11,9 +11,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -21,23 +24,33 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.baidu.mapapi.map.BitmapDescriptorFactory
+import com.baidu.mapapi.map.MapStatusUpdateFactory
 import com.baidu.mapapi.map.MapView
+import com.baidu.mapapi.map.MarkerOptions
+import com.baidu.mapapi.model.LatLng
 import com.kail.location.R
+import com.kail.location.viewmodels.SettingsViewModel
 import com.kail.location.views.history.HistoryActivity
 import com.kail.location.views.locationpicker.LocationPickerActivity
 import com.kail.location.viewmodels.LocationPickerViewModel
+import androidx.preference.PreferenceManager
 
 /**
  * 历史记录浮窗的组合函数。
@@ -55,14 +68,36 @@ fun JoyStickHistoryOverlay(
     onClose: () -> Unit,
     onWindowDrag: (Float, Float) -> Unit,
     onSelectRecord: (Map<String, Any>) -> Unit,
-    onSearch: (String) -> Unit
+    onSearch: (String) -> Unit,
+    onToggleFavorite: (String) -> Unit = {},
+    onRename: (String, String) -> Unit = { _, _ -> },
+    onDelete: (String) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var renameTarget by remember { mutableStateOf<String?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    val ctx = LocalContext.current
+    val prefs = remember { PreferenceManager.getDefaultSharedPreferences(ctx) }
+    val winW = remember {
+        (prefs.getString(SettingsViewModel.KEY_FLOATING_WINDOW_WIDTH, "300") ?: "300").toIntOrNull() ?: 300
+    }.dp
+    val winH = remember {
+        (prefs.getString(SettingsViewModel.KEY_FLOATING_WINDOW_HEIGHT, "500") ?: "500").toIntOrNull() ?: 500
+    }.dp
+
+    val filteredRecords = remember(historyRecords, searchQuery) {
+        if (searchQuery.isBlank()) historyRecords
+        else historyRecords.filter { r ->
+            val name = (r[HistoryActivity.KEY_LOCATION] as? String) ?: ""
+            val time = (r[HistoryActivity.KEY_TIME] as? String) ?: ""
+            name.contains(searchQuery, ignoreCase = true) || time.contains(searchQuery, ignoreCase = true)
+        }
+    }
 
     Column(
         modifier = Modifier
-            .width(300.dp)
-            .height(500.dp)
+            .width(winW)
+            .height(winH)
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
             .pointerInput(Unit) {
@@ -96,7 +131,7 @@ fun JoyStickHistoryOverlay(
         // Search
         OutlinedTextField(
             value = searchQuery,
-            onValueChange = { 
+            onValueChange = {
                 searchQuery = it
                 onSearch(it)
             },
@@ -110,7 +145,7 @@ fun JoyStickHistoryOverlay(
         )
 
         // List
-        if (historyRecords.isEmpty()) {
+        if (filteredRecords.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.history_idle), color = Color.Gray)
             }
@@ -119,34 +154,55 @@ fun JoyStickHistoryOverlay(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
-                items(historyRecords) { record ->
-                    HistoryItem(record = record, onClick = { onSelectRecord(record) })
+                items(filteredRecords) { record ->
+                    val id = (record[HistoryActivity.KEY_ID] as? String) ?: ""
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onSelectRecord(record) }.padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            HistoryItem(record = record, onClick = { onSelectRecord(record) })
+                        }
+                        val isFav = (record["isFavorite"] as? Boolean) ?: false
+                        IconButton(onClick = { onToggleFavorite(id) }) {
+                            Icon(Icons.Default.Star, contentDescription = "Favorite", tint = if (isFav) Color(0xFFFFB300) else Color.Gray, modifier = Modifier.graphicsLayer(alpha = if (isFav) 1f else 0.4f))
+                        }
+                        IconButton(onClick = { renameTarget = id; renameText = (record[HistoryActivity.KEY_LOCATION] as? String) ?: "" }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        IconButton(onClick = { onDelete(id) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                        }
+                    }
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = Color.LightGray.copy(alpha = 0.5f))
                 }
             }
         }
     }
+
+    if (renameTarget != null) {
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text(stringResource(R.string.location_rename_title)) },
+            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }) },
+            confirmButton = { TextButton(onClick = { onRename(renameTarget!!, renameText); renameTarget = null }) { Text(stringResource(R.string.common_ok)) } },
+            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.common_cancel)) } }
+        )
+    }
 }
 
-/**
- * 单条历史记录项的组合函数。
- *
- * @param record 历史记录数据。
- * @param onClick 点击项时的回调。
- */
 @Composable
 fun HistoryItem(
     record: Map<String, Any>,
     onClick: () -> Unit
 ) {
-    // Determine keys based on available data
     val name = (record[HistoryActivity.KEY_LOCATION] as? String) 
             ?: (record[LocationPickerViewModel.POI_NAME] as? String) 
             ?: "Unknown"
             
-        val address = (record[HistoryActivity.KEY_TIME] as? String) 
-            ?: (record[LocationPickerViewModel.POI_ADDRESS] as? String) 
-            ?: ""
+    val address = (record[HistoryActivity.KEY_TIME] as? String) 
+        ?: (record[LocationPickerViewModel.POI_ADDRESS] as? String) 
+        ?: ""
     
     Column(
         modifier = Modifier
@@ -164,34 +220,45 @@ fun HistoryItem(
 /**
  * 地图浮窗的组合函数。
  * 在悬浮窗中显示地图与搜索/传送等控制。
- *
- * @param mapView 要展示的 MapView 实例。
- * @param onClose 点击关闭按钮的回调。
- * @param onWindowDrag 悬浮窗拖动回调（dx, dy）。
- * @param onGo 点击“GO”时的回调。
- * @param onBackToCurrent 返回当前位置的回调。
- * @param onSearch 搜索关键字变化时的回调。
- * @param searchResults 搜索结果列表。
- * @param onSelectSearchResult 选中搜索结果时的回调。
  */
 @Composable
 fun JoyStickMapOverlay(
-    mapView: MapView, // Pass initialized MapView
+    mapView: MapView,
+    currentLocation: LatLng = LatLng(0.0, 0.0),
     onClose: () -> Unit,
     onWindowDrag: (Float, Float) -> Unit,
     onGo: () -> Unit,
     onBackToCurrent: () -> Unit,
-    onSearch: (String) -> Unit, // Implement search logic
+    onSearch: (String) -> Unit,
     searchResults: List<Map<String, Any>>?,
     onSelectSearchResult: (Map<String, Any>) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var showSearchResults by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
+    val prefs = remember { PreferenceManager.getDefaultSharedPreferences(ctx) }
+    val winW = remember {
+        (prefs.getString(SettingsViewModel.KEY_FLOATING_WINDOW_WIDTH, "300") ?: "300").toIntOrNull() ?: 300
+    }.dp
+    val winH = remember {
+        (prefs.getString(SettingsViewModel.KEY_FLOATING_WINDOW_HEIGHT, "500") ?: "500").toIntOrNull() ?: 500
+    }.dp
+
+    LaunchedEffect(Unit) {
+        if (currentLocation.latitude != 0.0 || currentLocation.longitude != 0.0) {
+            try {
+                mapView.map.setMapStatus(MapStatusUpdateFactory.newLatLng(currentLocation))
+                mapView.map.addOverlay(
+                    MarkerOptions().position(currentLocation).icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_position))
+                )
+            } catch (_: Exception) {}
+        }
+    }
 
     Column(
         modifier = Modifier
-            .width(300.dp)
-            .height(500.dp)
+            .width(winW)
+            .height(winH)
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
             .pointerInput(Unit) {
@@ -288,7 +355,7 @@ fun JoyStickMapOverlay(
                             HistoryItem(record = item, onClick = {
                                 onSelectSearchResult(item)
                                 showSearchResults = false
-                                searchQuery = "" // Clear search?
+                                searchQuery = ""
                             })
                             HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
                         }

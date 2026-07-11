@@ -100,19 +100,29 @@ class JoystickWindowManager(
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val mapZoom = prefs.getString(SettingsViewModel.KEY_MAP_ZOOM, "17")?.toFloatOrNull() ?: 17f
 
+            val clickListener = object : BaiduMap.OnMapClickListener {
+                override fun onMapClick(point: LatLng) {
+                    viewModel.updateMarkLocation(point)
+                    viewModel.confirmTeleport(listener)
+                }
+                override fun onMapPoiClick(poi: com.baidu.mapapi.map.MapPoi) {
+                    viewModel.updateMarkLocation(poi.position)
+                    viewModel.confirmTeleport(listener)
+                }
+            }
+
             mapView = MapView(context).apply {
                 showZoomControls(false)
                 map.isMyLocationEnabled = true
-                map.setOnMapClickListener(object : BaiduMap.OnMapClickListener {
-                    override fun onMapClick(point: LatLng) { viewModel.updateMarkLocation(point) }
-                    override fun onMapPoiClick(poi: com.baidu.mapapi.map.MapPoi) { viewModel.updateMarkLocation(poi.position) }
-                })
+                map.setMapStatus(MapStatusUpdateFactory.zoomTo(mapZoom))
+                map.setOnMapClickListener(clickListener)
             }
 
             routeMapView = MapView(context).apply {
                 showZoomControls(false)
                 map.isMyLocationEnabled = true
                 map.setMapStatus(MapStatusUpdateFactory.zoomTo(mapZoom))
+                map.setOnMapClickListener(clickListener)
             }
         } catch (e: Exception) {
             KailLog.e(context, "JoystickWindowManager", "Map initialization error: ${e.message}")
