@@ -35,9 +35,9 @@ object SandboxLocationHook {
         try {
             BLocationManager.get().setPattern(0, "", BLocationManager.GLOBAL_MODE)
             isSimulating = true
-            KailLog.i(null, TAG, "enableGlobalSimulation: global mode on")
+            KailLog.i(null, TAG, "enableGlobalSimulation: global mode on -> BLocationManager.setPattern(0, '', GLOBAL_MODE)")
         } catch (e: Exception) {
-            KailLog.e(null, TAG, "Failed to enable global simulation", e)
+            KailLog.e(null, TAG, "enableGlobalSimulation FAILED", e)
         }
     }
 
