@@ -32,7 +32,7 @@ import top.niunaijun.blackbox.utils.Slog;
 
 
 public class BLocationManagerService extends IBLocationManagerService.Stub implements ISystemService {
-    public static final String TAG = "BLocationManagerService";
+    public static final String TAG = "[sandbox] BLocationManagerService";
 
     private static final BLocationManagerService sService = new BLocationManagerService();
     private final SparseArray<HashMap<String, BLocationConfig>> mLocationConfigs = new SparseArray<>();
@@ -64,20 +64,25 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
     public int getPattern(int userId, String pkg) {
         synchronized (mLocationConfigs) {
             BLocationConfig config = getOrCreateConfig(userId, pkg);
+            Slog.v(TAG, "getPattern userId=" + userId + " pkg=" + pkg + " -> " + config.pattern);
             return config.pattern;
         }
     }
 
     @Override
     public void setPattern(int userId, String pkg, int pattern) {
+        String patternStr = pattern == BLocationManager.CLOSE_MODE ? "CLOSE" : pattern == BLocationManager.GLOBAL_MODE ? "GLOBAL" : "OWN";
+        Slog.i(TAG, "setPattern userId=" + userId + " pkg=" + pkg + " pattern=" + pattern + "(" + patternStr + ")");
         synchronized (mLocationConfigs) {
             getOrCreateConfig(userId, pkg).pattern = pattern;
             save();
         }
+        Slog.v(TAG, "setPattern saved");
     }
 
     @Override
     public void setCell(int userId, String pkg, BCell cell) {
+        Slog.v(TAG, "setCell userId=" + userId + " pkg=" + pkg + " cell=" + cell);
         synchronized (mLocationConfigs) {
             getOrCreateConfig(userId, pkg).cell = cell;
             save();
@@ -141,17 +146,18 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
     private BLocationConfig resolveConfig(int userId, String pkg) {
         BLocationConfig config = getOrCreateConfig(userId, pkg);
         if (config.pattern == BLocationManager.CLOSE_MODE) {
-            // 没有针对该包名的配置时，回退到空字符串包名的全局默认设置
             synchronized (mLocationConfigs) {
                 HashMap<String, BLocationConfig> pkgs = mLocationConfigs.get(userId);
                 if (pkgs != null) {
                     BLocationConfig globalDefault = pkgs.get("");
                     if (globalDefault != null && globalDefault.pattern == BLocationManager.GLOBAL_MODE) {
+                        Slog.v(TAG, "resolveConfig: fallback to global default for userId=" + userId + " pkg=" + pkg);
                         return globalDefault;
                     }
                 }
             }
         }
+        Slog.v(TAG, "resolveConfig: userId=" + userId + " pkg=" + pkg + " -> " + config);
         return config;
     }
 
@@ -185,6 +191,7 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
 
     @Override
     public void setLocation(int userId, String pkg, BLocation location) {
+        Slog.i(TAG, "setLocation userId=" + userId + " pkg=" + pkg + " loc=" + location);
         synchronized (mLocationConfigs) {
             getOrCreateConfig(userId, pkg).location = location;
             save();
@@ -194,71 +201,96 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
     @Override
     public BLocation getLocation(int userId, String pkg) {
         BLocationConfig config = resolveConfig(userId, pkg);
+        BLocation result;
         switch (config.pattern) {
             case BLocationManager.OWN_MODE:
-                return config.location;
+                result = config.location;
+                break;
             case BLocationManager.GLOBAL_MODE:
-                return mGlobalConfig.location;
+                result = mGlobalConfig.location;
+                break;
             case BLocationManager.CLOSE_MODE:
             default:
-                return null;
+                result = null;
+                break;
         }
+        Slog.v(TAG, "getLocation userId=" + userId + " pkg=" + pkg + " pattern=" + config.pattern + " -> " + result);
+        return result;
     }
 
     @Override
     public void setGlobalLocation(BLocation location) {
+        Slog.i(TAG, "setGlobalLocation " + (location != null ? location.toString() : "null"));
         synchronized (mGlobalConfig) {
             mGlobalConfig.location = location;
             save();
         }
+        Slog.v(TAG, "setGlobalLocation saved");
     }
 
     @Override
     public BLocation getGlobalLocation() {
         synchronized (mGlobalConfig) {
-            return mGlobalConfig.location;
+            BLocation loc = mGlobalConfig.location;
+            Slog.v(TAG, "getGlobalLocation -> " + loc);
+            return loc;
         }
     }
 
     @Override
     public void requestLocationUpdates(IBinder listener, String packageName, int userId) throws RemoteException {
+        Slog.i(TAG, "requestLocationUpdates pkg=" + packageName + " userId=" + userId + " listener=" + listener);
         if (listener == null || !listener.pingBinder()) {
+            Slog.w(TAG, "requestLocationUpdates: listener is null or dead");
             return;
         }
-        if (mLocationListeners.containsKey(listener))
+        if (mLocationListeners.containsKey(listener)) {
+            Slog.v(TAG, "requestLocationUpdates: listener already registered, skip");
             return;
+        }
         listener.linkToDeath(new DeathRecipient() {
             @Override
             public void binderDied() {
+                Slog.i(TAG, "requestLocationUpdates: listener binderDied, removing pkg=" + packageName);
                 listener.unlinkToDeath(this, 0);
                 mLocationListeners.remove(listener);
             }
         }, 0);
         LocationRecord record = new LocationRecord(packageName, userId);
         mLocationListeners.put(listener, record);
+        Slog.i(TAG, "requestLocationUpdates: registered, total listeners=" + mLocationListeners.size());
         addTask(listener);
     }
 
     @Override
     public void removeUpdates(IBinder listener) throws RemoteException {
+        Slog.i(TAG, "removeUpdates listener=" + listener);
         if (listener == null || !listener.pingBinder()) {
+            Slog.w(TAG, "removeUpdates: listener is null or dead");
             return;
         }
-        mLocationListeners.remove(listener);
+        LocationRecord removed = mLocationListeners.remove(listener);
+        Slog.i(TAG, "removeUpdates: removed=" + (removed != null) + " remaining=" + mLocationListeners.size());
     }
 
     private void addTask(IBinder locationListener) {
         mThreadPool.execute(() -> {
             BLocation lastLocation = null;
             long l = System.currentTimeMillis();
+            Slog.v(TAG, "addTask: listener thread started");
             while (locationListener.pingBinder()) {
                 IInterface iInterface = BRILocationListenerStub.get().asInterface(locationListener);
                 LocationRecord locationRecord = mLocationListeners.get(locationListener);
-                if (locationRecord == null)
+                if (locationRecord == null) {
+                    Slog.v(TAG, "addTask: locationRecord is null, waiting...");
+                    try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
                     continue;
+                }
                 BLocation location = getLocation(locationRecord.userId, locationRecord.packageName);
-                if (location == null)
+                if (location == null) {
+                    try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
                     continue;
+                }
                 if (location.equals(lastLocation) && (System.currentTimeMillis() - l) < 3000) {
                     try {
                         Thread.sleep(1000);
@@ -268,8 +300,18 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
                 }
                 lastLocation = location;
                 l = System.currentTimeMillis();
-                BlackBoxCore.get().getHandler().post(() -> BRILocationListener.get(iInterface).onLocationChanged(location.convert2SystemLocation()));
+                Slog.v(TAG, "addTask: dispatching to listener pkg=" + locationRecord.packageName
+                        + " lat=" + location.getLatitude() + " lng=" + location.getLongitude());
+                BlackBoxCore.get().getHandler().post(() -> {
+                    try {
+                        BRILocationListener.get(iInterface).onLocationChanged(location.convert2SystemLocation());
+                        Slog.v(TAG, "addTask: dispatched successfully");
+                    } catch (Exception e) {
+                        Slog.e(TAG, "addTask: dispatch failed", e);
+                    }
+                });
             }
+            Slog.v(TAG, "addTask: listener binder died, thread exiting");
         });
     }
 
@@ -277,7 +319,9 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         synchronized (mGlobalConfig) {
             synchronized (mLocationConfigs) {
                 Parcel parcel = Parcel.obtain();
-                AtomicFile atomicFile = new AtomicFile(BEnvironment.getFakeLocationConf());
+                File configFile = BEnvironment.getFakeLocationConf();
+                Slog.v(TAG, "save: writing to " + configFile.getAbsolutePath());
+                AtomicFile atomicFile = new AtomicFile(configFile);
                 FileOutputStream fileOutputStream = null;
                 try {
                     mGlobalConfig.writeToParcel(parcel, 0);
@@ -293,8 +337,9 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
                     fileOutputStream = atomicFile.startWrite();
                     FileUtils.writeParcelToOutput(parcel, fileOutputStream);
                     atomicFile.finishWrite(fileOutputStream);
+                    Slog.v(TAG, "save: success (" + mLocationConfigs.size() + " user configs)");
                 } catch (Throwable e) {
-                    e.printStackTrace();
+                    Slog.e(TAG, "save: failed", e);
                     atomicFile.failWrite(fileOutputStream);
                 } finally {
                     parcel.recycle();
@@ -309,21 +354,25 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
         InputStream is = null;
         try {
             File fakeLocationConf = BEnvironment.getFakeLocationConf();
+            Slog.i(TAG, "loadConfig: file=" + fakeLocationConf.getAbsolutePath() + " exists=" + fakeLocationConf.exists());
             if (!fakeLocationConf.exists()) {
+                Slog.i(TAG, "loadConfig: no config file, first run");
                 return;
             }
-            is = new FileInputStream(BEnvironment.getFakeLocationConf());
+            is = new FileInputStream(fakeLocationConf);
             byte[] bytes = FileUtils.toByteArray(is);
             parcel.unmarshall(bytes, 0, bytes.length);
             parcel.setDataPosition(0);
 
             synchronized (mGlobalConfig) {
                 mGlobalConfig.refresh(parcel);
+                Slog.i(TAG, "loadConfig: globalConfig loaded pattern=" + mGlobalConfig.pattern + " loc=" + mGlobalConfig.location);
             }
 
             synchronized (mLocationConfigs) {
                 mLocationConfigs.clear();
                 int size = parcel.readInt();
+                Slog.i(TAG, "loadConfig: " + size + " user configs to load");
                 for (int i = 0; i < size; i++) {
                     int userId = parcel.readInt();
                     HashMap<String, BLocationConfig> configArrayMap = parcel.readHashMap(BLocationConfig.class.getClassLoader());
@@ -332,8 +381,7 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
-            Slog.d(TAG, "bad config");
+            Slog.e(TAG, "loadConfig: bad config, deleting file", e);
             FileUtils.deleteDir(BEnvironment.getFakeLocationConf());
         } finally {
             parcel.recycle();
@@ -343,9 +391,13 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
 
     @Override
     public void systemReady() {
+        Slog.i(TAG, "systemReady: loading config and restoring listeners");
         loadConfig();
+        int listenerCount = mLocationListeners.size();
+        Slog.i(TAG, "systemReady: restoring " + listenerCount + " listeners");
         for (IBinder iBinder : mLocationListeners.keySet()) {
             addTask(iBinder);
         }
+        Slog.i(TAG, "systemReady: done");
     }
 }

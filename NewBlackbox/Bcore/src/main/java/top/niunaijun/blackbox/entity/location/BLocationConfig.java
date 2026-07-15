@@ -44,6 +44,12 @@ public class BLocationConfig implements Parcelable {
         dest.writeParcelable(this.location, flags);
     }
 
+    @Override
+    public String toString() {
+        String patternStr = pattern == 0 ? "CLOSE" : pattern == 1 ? "GLOBAL" : "OWN";
+        return "BLocationConfig{pattern=" + patternStr + "(" + pattern + "), location=" + location + ", cell=" + cell + "}";
+    }
+
     public static final Creator<BLocationConfig> CREATOR = new Creator<BLocationConfig>() {
         @Override
         public BLocationConfig createFromParcel(Parcel source) {

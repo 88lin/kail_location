@@ -11,7 +11,7 @@ import top.niunaijun.blackbox.fake.frameworks.BLocationManager
  */
 object SandboxLocationHook {
 
-    private const val TAG = "SandboxLocationHook"
+    private const val TAG = "[sandbox] SandboxLocationHook"
 
     @Volatile
     private var isSimulating = false
@@ -48,9 +48,9 @@ object SandboxLocationHook {
         try {
             BLocationManager.get().setPattern(0, "", BLocationManager.CLOSE_MODE)
             isSimulating = false
-            KailLog.i(null, TAG, "disableSimulation: simulation off")
+            KailLog.i(null, TAG, "disableSimulation: pattern=CLOSE_MODE isSimulating=false")
         } catch (e: Exception) {
-            KailLog.e(null, TAG, "Failed to disable simulation", e)
+            KailLog.e(null, TAG, "disableSimulation FAILED", e)
         }
     }
 
@@ -67,11 +67,16 @@ object SandboxLocationHook {
         if (isSimulating) {
             try {
                 val bLocation = BLocation(lat, lng)
+                bLocation.altitude = alt
+                bLocation.speed = speed.toFloat()
+                bLocation.bearing = bearing
                 BLocationManager.get().setGlobalLocation(bLocation)
-                KailLog.v(null, TAG, "updateLocation lat=$lat lng=$lng alt=$alt bea=$bearing spd=$speed")
+                KailLog.v(null, TAG, "updateLocation -> BLocationManager.setGlobalLocation($lat, $lng) alt=$alt bea=$bearing spd=$speed")
             } catch (e: Exception) {
-                KailLog.e(null, TAG, "Failed to update location", e)
+                KailLog.e(null, TAG, "updateLocation FAILED lat=$lat lng=$lng", e)
             }
+        } else {
+            KailLog.v(null, TAG, "updateLocation skipped (isSimulating=false) lat=$lat lng=$lng")
         }
     }
 
