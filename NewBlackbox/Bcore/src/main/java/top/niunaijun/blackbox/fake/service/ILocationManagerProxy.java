@@ -146,13 +146,16 @@ public class ILocationManagerProxy extends BinderInvocationStub {
             String pkg = BActivityThread.getAppPackageName();
             int userId = BActivityThread.getUserId();
             if (BLocationManager.isFakeLocationEnable()) {
-                if (args[1] instanceof IInterface) {
-                    IInterface listener = (IInterface) args[1];
-                    Slog.i(TAG, "requestLocationUpdates INTERCEPTED pkg=" + pkg + " userId=" + userId + " listener=" + listener.asBinder());
-                    BLocationManager.get().requestLocationUpdates(listener.asBinder());
-                    return 0;
+                for (int i = 0; i < args.length; i++) {
+                    if (args[i] instanceof IInterface) {
+                        IInterface listener = (IInterface) args[i];
+                        Slog.i(TAG, "requestLocationUpdates INTERCEPTED pkg=" + pkg + " userId=" + userId
+                                + " listener=" + listener.asBinder() + " argIdx=" + i);
+                        BLocationManager.get().requestLocationUpdates(listener.asBinder());
+                        return 0;
+                    }
                 }
-                Slog.w(TAG, "requestLocationUpdates: args[1] is not IInterface, type=" + (args[1] != null ? args[1].getClass().getName() : "null"));
+                Slog.w(TAG, "requestLocationUpdates: no IInterface found in " + args.length + " args, pass-through");
             }
             Slog.v(TAG, "requestLocationUpdates PASS-THROUGH pkg=" + pkg + " userId=" + userId);
             try {
