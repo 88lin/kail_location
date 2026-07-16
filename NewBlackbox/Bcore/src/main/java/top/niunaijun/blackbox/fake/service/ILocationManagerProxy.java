@@ -77,8 +77,138 @@ public class ILocationManagerProxy extends BinderInvocationStub {
 
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            
-            return true;
+            String pkg = BActivityThread.getAppPackageName();
+            int userId = BActivityThread.getUserId();
+            if (BLocationManager.isFakeLocationEnable()) {
+                for (int i = 0; i < args.length; i++) {
+                    if (args[i] instanceof IInterface) {
+                        IInterface listener = (IInterface) args[i];
+                        Slog.i(TAG, "registerGnssStatusCallback INTERCEPTED pkg=" + pkg + " userId=" + userId
+                                + " listener=" + listener.asBinder() + " argIdx=" + i);
+                        BLocationManager.get().registerGnssStatusCallback(listener.asBinder());
+                        return true;
+                    }
+                }
+                Slog.w(TAG, "registerGnssStatusCallback: no IInterface found, pass-through");
+            }
+            Slog.v(TAG, "registerGnssStatusCallback PASS-THROUGH pkg=" + pkg + " userId=" + userId);
+            try {
+                return method.invoke(who, args);
+            } catch (Exception e) {
+                if (e.getCause() instanceof SecurityException) {
+                    Slog.w(TAG, "registerGnssStatusCallback permission denied, returning false");
+                    return false;
+                }
+                throw e;
+            }
+        }
+    }
+
+    @ProxyMethod("unregisterGnssStatusCallback")
+    public static class UnregisterGnssStatusCallback extends MethodHook {
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (args[0] instanceof IInterface) {
+                IInterface listener = (IInterface) args[0];
+                Slog.i(TAG, "unregisterGnssStatusCallback listener=" + listener.asBinder());
+                BLocationManager.get().unregisterGnssStatusCallback(listener.asBinder());
+                return null;
+            }
+            Slog.v(TAG, "unregisterGnssStatusCallback PASS-THROUGH");
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("addGnssMeasurementsListener")
+    public static class AddGnssMeasurementsListener extends MethodHook {
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (BLocationManager.isFakeLocationEnable()) {
+                Slog.v(TAG, "addGnssMeasurementsListener: blocked (return null)");
+                return null;
+            }
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("removeGnssMeasurementsListener")
+    public static class RemoveGnssMeasurementsListener extends MethodHook {
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Slog.v(TAG, "removeGnssMeasurementsListener: pass-through");
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("addGnssNavigationMessageListener")
+    public static class AddGnssNavigationMessageListener extends MethodHook {
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (BLocationManager.isFakeLocationEnable()) {
+                Slog.v(TAG, "addGnssNavigationMessageListener: blocked (return null)");
+                return null;
+            }
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("removeGnssNavigationMessageListener")
+    public static class RemoveGnssNavigationMessageListener extends MethodHook {
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Slog.v(TAG, "removeGnssNavigationMessageListener: pass-through");
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("addGnssAntennaInfoListener")
+    public static class AddGnssAntennaInfoListener extends MethodHook {
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (BLocationManager.isFakeLocationEnable()) {
+                Slog.v(TAG, "addGnssAntennaInfoListener: blocked (return null)");
+                return null;
+            }
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("removeGnssAntennaInfoListener")
+    public static class RemoveGnssAntennaInfoListener extends MethodHook {
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Slog.v(TAG, "removeGnssAntennaInfoListener: pass-through");
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("registerGnssNmeaCallback")
+    public static class RegisterGnssNmeaCallback extends MethodHook {
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (BLocationManager.isFakeLocationEnable()) {
+                Slog.v(TAG, "registerGnssNmeaCallback: blocked (return null)");
+                return null;
+            }
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("unregisterGnssNmeaCallback")
+    public static class UnregisterGnssNmeaCallback extends MethodHook {
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Slog.v(TAG, "unregisterGnssNmeaCallback: pass-through");
+            return method.invoke(who, args);
         }
     }
 

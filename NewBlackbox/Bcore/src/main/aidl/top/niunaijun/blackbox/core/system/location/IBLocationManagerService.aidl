@@ -3,6 +3,7 @@ package top.niunaijun.blackbox.core.system.location;
 
 import top.niunaijun.blackbox.entity.location.BLocation;
 import top.niunaijun.blackbox.entity.location.BCell;
+import top.niunaijun.blackbox.entity.location.BGnssStatus;
 
 import java.util.List;
 
@@ -42,4 +43,16 @@ interface IBLocationManagerService {
     void requestLocationUpdates(in IBinder listener, String packageName, int userId);
 
     void removeUpdates(in IBinder listener);
+
+    void setGnssStatus(int userId, String pkg, in BGnssStatus status);
+
+    BGnssStatus getGnssStatus(int userId, String pkg);
+
+    void setGlobalGnssStatus(in BGnssStatus status);
+
+    BGnssStatus getGlobalGnssStatus();
+
+    void registerGnssStatusCallback(in IBinder listener, String packageName, int userId);
+
+    void unregisterGnssStatusCallback(in IBinder listener);
 }

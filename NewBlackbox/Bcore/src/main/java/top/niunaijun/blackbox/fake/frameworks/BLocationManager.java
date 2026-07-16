@@ -12,6 +12,7 @@ import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.core.system.ServiceManager;
 import top.niunaijun.blackbox.core.system.location.IBLocationManagerService;
 import top.niunaijun.blackbox.entity.location.BCell;
+import top.niunaijun.blackbox.entity.location.BGnssStatus;
 import top.niunaijun.blackbox.entity.location.BLocation;
 
 
@@ -222,6 +223,66 @@ public class BLocationManager extends BlackManager<IBLocationManagerService> {
             getService().removeUpdates(listener);
         } catch (RemoteException e) {
             Slog.e(TAG, "removeUpdates failed", e);
+        }
+    }
+
+    public void setGnssStatus(int userId, String pkg, BGnssStatus status) {
+        Slog.i(TAG, "setGnssStatus userId=" + userId + " pkg=" + pkg + " status=" + status);
+        try {
+            getService().setGnssStatus(userId, pkg, status);
+        } catch (RemoteException e) {
+            Slog.e(TAG, "setGnssStatus failed", e);
+        }
+    }
+
+    public BGnssStatus getGnssStatus(int userId, String pkg) {
+        try {
+            BGnssStatus result = getService().getGnssStatus(userId, pkg);
+            Slog.v(TAG, "getGnssStatus userId=" + userId + " pkg=" + pkg + " -> " + result);
+            return result;
+        } catch (RemoteException e) {
+            Slog.e(TAG, "getGnssStatus failed", e);
+        }
+        return null;
+    }
+
+    public void setGlobalGnssStatus(BGnssStatus status) {
+        Slog.i(TAG, "setGlobalGnssStatus status=" + status);
+        try {
+            getService().setGlobalGnssStatus(status);
+        } catch (RemoteException e) {
+            Slog.e(TAG, "setGlobalGnssStatus failed", e);
+        }
+    }
+
+    public BGnssStatus getGlobalGnssStatus() {
+        try {
+            BGnssStatus result = getService().getGlobalGnssStatus();
+            Slog.v(TAG, "getGlobalGnssStatus -> " + result);
+            return result;
+        } catch (RemoteException e) {
+            Slog.e(TAG, "getGlobalGnssStatus failed", e);
+        }
+        return null;
+    }
+
+    public void registerGnssStatusCallback(IBinder listener) {
+        String pkg = BActivityThread.getAppPackageName();
+        int userId = BActivityThread.getUserId();
+        Slog.i(TAG, "registerGnssStatusCallback pkg=" + pkg + " userId=" + userId + " listener=" + listener);
+        try {
+            getService().registerGnssStatusCallback(listener, pkg, userId);
+        } catch (RemoteException e) {
+            Slog.e(TAG, "registerGnssStatusCallback failed", e);
+        }
+    }
+
+    public void unregisterGnssStatusCallback(IBinder listener) {
+        Slog.i(TAG, "unregisterGnssStatusCallback listener=" + listener);
+        try {
+            getService().unregisterGnssStatusCallback(listener);
+        } catch (RemoteException e) {
+            Slog.e(TAG, "unregisterGnssStatusCallback failed", e);
         }
     }
 }

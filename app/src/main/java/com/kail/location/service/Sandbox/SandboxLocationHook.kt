@@ -2,6 +2,7 @@ package com.kail.location.service.Sandbox
 
 import com.kail.location.utils.KailLog
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.entity.location.BGnssStatus
 import top.niunaijun.blackbox.entity.location.BLocation
 import top.niunaijun.blackbox.fake.frameworks.BLocationManager
 
@@ -91,4 +92,36 @@ object SandboxLocationHook {
      * 是否正在模拟。
      */
     fun isSimulating(): Boolean = isSimulating
+
+    /**
+     * 启用 GNSS 卫星状态模拟。
+     * GNSS 数据会随位置模拟自动推送（默认生成北斗卫星数据）。
+     */
+    fun enableGnssSimulation() {
+        KailLog.i(null, TAG, "enableGnssSimulation: GNSS status will be pushed with location simulation")
+    }
+
+    /**
+     * 设置自定义 GNSS 卫星状态（OWN 模式）。
+     */
+    fun setGnssStatus(userId: Int, pkg: String, status: BGnssStatus) {
+        try {
+            BLocationManager.get().setGnssStatus(userId, pkg, status)
+            KailLog.i(null, TAG, "setGnssStatus userId=$userId pkg=$pkg svCount=${status.svCount}")
+        } catch (e: Exception) {
+            KailLog.e(null, TAG, "setGnssStatus FAILED", e)
+        }
+    }
+
+    /**
+     * 设置全局 GNSS 卫星状态（GLOBAL 模式）。
+     */
+    fun setGlobalGnssStatus(status: BGnssStatus) {
+        try {
+            BLocationManager.get().setGlobalGnssStatus(status)
+            KailLog.i(null, TAG, "setGlobalGnssStatus svCount=${status.svCount}")
+        } catch (e: Exception) {
+            KailLog.e(null, TAG, "setGlobalGnssStatus FAILED", e)
+        }
+    }
 }

@@ -13,6 +13,7 @@ public class BLocationConfig implements Parcelable {
     public List<BCell> allCell;
     public List<BCell> neighboringCellInfo;
     public BLocation location;
+    public BGnssStatus gnssStatus;
 
     @Override
     public int describeContents() {
@@ -32,6 +33,7 @@ public class BLocationConfig implements Parcelable {
         this.allCell = in.createTypedArrayList(BCell.CREATOR);
         this.neighboringCellInfo = in.createTypedArrayList(BCell.CREATOR);
         this.location = in.readParcelable(BLocation.class.getClassLoader());
+        this.gnssStatus = in.readParcelable(BGnssStatus.class.getClassLoader());
     }
 
 
@@ -42,12 +44,13 @@ public class BLocationConfig implements Parcelable {
         dest.writeTypedList(this.allCell);
         dest.writeTypedList(this.neighboringCellInfo);
         dest.writeParcelable(this.location, flags);
+        dest.writeParcelable(this.gnssStatus, flags);
     }
 
     @Override
     public String toString() {
         String patternStr = pattern == 0 ? "CLOSE" : pattern == 1 ? "GLOBAL" : "OWN";
-        return "BLocationConfig{pattern=" + patternStr + "(" + pattern + "), location=" + location + ", cell=" + cell + "}";
+        return "BLocationConfig{pattern=" + patternStr + "(" + pattern + "), location=" + location + ", cell=" + cell + ", gnssStatus=" + gnssStatus + "}";
     }
 
     public static final Creator<BLocationConfig> CREATOR = new Creator<BLocationConfig>() {
