@@ -176,6 +176,8 @@
     <string name="route_plan_latitude">緯度</string>
     <string name="route_plan_longitude">経度</string>
     <string name="route_plan_coord_type">BD09 座標（既定は WGS84）</string>
+    <string name="route_plan_coord_combined">緯度,経度</string>
+    <string name="route_plan_coord_error">有効な緯度,経度を入力してください</string>
     <string name="route_plan_ok">OK</string>
     <string name="route_plan_cancel">キャンセル</string>
 

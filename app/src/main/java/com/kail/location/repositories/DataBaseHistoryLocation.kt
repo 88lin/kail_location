@@ -82,6 +82,16 @@ class DataBaseHistoryLocation(context: Context) : SQLiteOpenHelper(context, DB_N
             try {
                 val longitudeWgs84 = contentValues.getAsString(DB_COLUMN_LONGITUDE_WGS84)
                 val latitudeWgs84 = contentValues.getAsString(DB_COLUMN_LATITUDE_WGS84)
+                if (!contentValues.containsKey(DB_COLUMN_FAVORITE)) {
+                    val cursor = sqLiteDatabase.rawQuery(
+                        "SELECT $DB_COLUMN_FAVORITE FROM $TABLE_NAME WHERE $DB_COLUMN_LONGITUDE_WGS84 = ? AND $DB_COLUMN_LATITUDE_WGS84 = ?",
+                        arrayOf(longitudeWgs84, latitudeWgs84)
+                    )
+                    if (cursor.moveToFirst()) {
+                        contentValues.put(DB_COLUMN_FAVORITE, cursor.getInt(0))
+                    }
+                    cursor.close()
+                }
                 sqLiteDatabase.delete(
                     TABLE_NAME,
                     "$DB_COLUMN_LONGITUDE_WGS84 = ? AND $DB_COLUMN_LATITUDE_WGS84 = ?",
@@ -122,7 +132,6 @@ class DataBaseHistoryLocation(context: Context) : SQLiteOpenHelper(context, DB_N
             contentValues.put(DB_COLUMN_TIMESTAMP, timestamp)
             contentValues.put(DB_COLUMN_LONGITUDE_CUSTOM, lonCustom)
             contentValues.put(DB_COLUMN_LATITUDE_CUSTOM, latCustom)
-            contentValues.put(DB_COLUMN_FAVORITE, 0)
             saveHistoryLocation(sqLiteDatabase, contentValues)
         }
 

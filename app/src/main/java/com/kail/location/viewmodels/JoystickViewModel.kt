@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -60,6 +61,9 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
     private val _historyRecords = MutableStateFlow<List<Map<String, Any>>>(emptyList())
     val historyRecords: StateFlow<List<Map<String, Any>>> = _historyRecords.asStateFlow()
 
+    private val _isHistoryPinned = MutableStateFlow(false)
+    val isHistoryPinned: StateFlow<Boolean> = _isHistoryPinned.asStateFlow()
+
     // Route states
     private val _isRoutePaused = MutableStateFlow(false)
     val isRoutePaused: StateFlow<Boolean> = _isRoutePaused.asStateFlow()
@@ -84,6 +88,12 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
     init {
         _speed.value = sharedPreferences.getString(SettingsViewModel.KEY_JOYSTICK_SPEED, "1.2")?.toDoubleOrNull() ?: 1.2
         sharedPreferences.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
+        fetchHistoryRecords()
+        viewModelScope.launch {
+            DataBaseHistoryLocation.refreshSignal.collectLatest {
+                fetchHistoryRecords()
+            }
+        }
         
         suggestionSearch.setOnGetSuggestionResultListener { result ->
             if (result?.allSuggestions == null) {
@@ -227,10 +237,16 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
             val wgs84Latitude = parts[1].substring(parts[1].indexOf(':') + 1).toDouble()
             
             actionListener.onPositionInfo(wgs84Longitude, wgs84Latitude, _altitude.value)
-            setWindowType(WindowType.JOYSTICK)
+            if (!_isHistoryPinned.value) {
+                setWindowType(WindowType.JOYSTICK)
+            }
         } catch (e: Exception) {
             KailLog.e(getApplication(), "JOYSTICK", "Error selecting history: ${e.message}")
         }
+    }
+
+    fun toggleHistoryPin() {
+        _isHistoryPinned.value = !_isHistoryPinned.value
     }
 
     fun toggleHistoryFavorite(id: String) {

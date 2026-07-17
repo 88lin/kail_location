@@ -76,7 +76,9 @@ fun JoyStickHistoryOverlay(
     onSearch: (String) -> Unit,
     onToggleFavorite: (String) -> Unit = {},
     onRename: (String, String) -> Unit = { _, _ -> },
-    onDelete: (String) -> Unit = {}
+    onDelete: (String) -> Unit = {},
+    isPinned: Boolean = false,
+    onTogglePin: () -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<String?>(null) }
@@ -126,11 +128,20 @@ fun JoyStickHistoryOverlay(
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White
                 )
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.align(Alignment.CenterEnd)
+                Row(
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                    IconButton(onClick = onTogglePin, modifier = Modifier.size(30.dp).padding(2.dp)) {
+                        Icon(
+                            painterResource(R.drawable.ic_pin),
+                            contentDescription = "Pin",
+                            tint = if (isPinned) Color(0xFFFFB300) else Color.White.copy(alpha = 0.6f)
+                        )
+                    }
+                    IconButton(onClick = onClose, modifier = Modifier.size(30.dp).padding(2.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                    }
                 }
             }
 

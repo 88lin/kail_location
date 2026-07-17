@@ -212,17 +212,20 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                 }
                 
                 try {
-                    val wgs84 = MapUtils.bd2wgs(info.longitude, info.latitude)
-                    db?.let {
-                        DataBaseHistoryLocation.addHistoryLocation(
-                            it,
-                            info.name,
-                            wgs84[0].toString(),
-                            wgs84[1].toString(),
-                            (System.currentTimeMillis() / 1000).toString(),
-                            info.longitude.toString(),
-                            info.latitude.toString()
-                        )
+                    if (info.longitude != 0.0 || info.latitude != 0.0) {
+                        val wgs84 = MapUtils.bd2wgs(info.longitude, info.latitude)
+                        db?.let {
+                            DataBaseHistoryLocation.addHistoryLocation(
+                                it,
+                                info.name,
+                                wgs84[0].toString(),
+                                wgs84[1].toString(),
+                                (System.currentTimeMillis() / 1000).toString(),
+                                info.longitude.toString(),
+                                info.latitude.toString()
+                            )
+                        }
+                        DataBaseHistoryLocation.notifyChanged()
                     }
                 } catch (_: Exception) {}
                 val serviceClass = getServiceClass(currentRunMode)

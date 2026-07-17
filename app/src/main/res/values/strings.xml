@@ -218,6 +218,8 @@
     <string name="route_plan_latitude">纬度</string>
     <string name="route_plan_longitude">经度</string>
     <string name="route_plan_coord_type">BD09坐标 (默认WGS84)</string>
+    <string name="route_plan_coord_combined">纬度,经度</string>
+    <string name="route_plan_coord_error">请输入有效的纬度,经度</string>
     <string name="route_plan_ok">确定</string>
     <string name="route_plan_cancel">取消</string>
 

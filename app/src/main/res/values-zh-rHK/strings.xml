@@ -176,6 +176,8 @@
     <string name="route_plan_latitude">緯度</string>
     <string name="route_plan_longitude">經度</string>
     <string name="route_plan_coord_type">BD09 座標（預設 WGS84）</string>
+    <string name="route_plan_coord_combined">緯度,經度</string>
+    <string name="route_plan_coord_error">請輸入有效的緯度,經度</string>
     <string name="route_plan_ok">確定</string>
     <string name="route_plan_cancel">取消</string>
 

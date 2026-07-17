@@ -174,7 +174,9 @@ class LocationSimulationActivity : BaseActivity() {
                         }
                     },
                     onAddLocation = {
-                        startActivity(Intent(this, LocationPickerActivity::class.java))
+                        startActivity(Intent(this, LocationPickerActivity::class.java).apply {
+                            putExtra(LocationPickerActivity.EXTRA_PICK_MODE, true)
+                        })
                     },
                     appVersion = version,
                     onCheckUpdate = { viewModel.checkUpdate(this@LocationSimulationActivity) }

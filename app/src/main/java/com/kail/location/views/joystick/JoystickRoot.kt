@@ -68,6 +68,7 @@ fun JoystickRoot(
             }
         }
         JoystickViewModel.WindowType.HISTORY -> {
+            val isPinned by viewModel.isHistoryPinned.collectAsState()
             JoyStickHistoryOverlay(
                 historyRecords = historyRecords,
                 onClose = { viewModel.setWindowType(JoystickViewModel.WindowType.JOYSTICK) },
@@ -76,7 +77,9 @@ fun JoystickRoot(
                 onSearch = { },
                 onToggleFavorite = { id -> viewModel.toggleHistoryFavorite(id) },
                 onRename = { id, name -> viewModel.renameHistoryRecord(id, name) },
-                onDelete = { id -> viewModel.deleteHistoryRecord(id) }
+                onDelete = { id -> viewModel.deleteHistoryRecord(id) },
+                isPinned = isPinned,
+                onTogglePin = { viewModel.toggleHistoryPin() }
             )
         }
         JoystickViewModel.WindowType.ROUTE_CONTROL -> {
