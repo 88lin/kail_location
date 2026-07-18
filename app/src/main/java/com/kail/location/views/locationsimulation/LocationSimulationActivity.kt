@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -34,6 +35,20 @@ import androidx.compose.runtime.LaunchedEffect
 class LocationSimulationActivity : BaseActivity() {
 
     private val viewModel: LocationSimulationViewModel by viewModels()
+
+    private val locationPickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data
+            if (data != null) {
+                val lat = data.getDoubleExtra(LocationPickerActivity.RESULT_LAT, 0.0)
+                val lng = data.getDoubleExtra(LocationPickerActivity.RESULT_LNG, 0.0)
+                val name = data.getStringExtra(LocationPickerActivity.RESULT_NAME) ?: "Unknown"
+                if (lat != 0.0 || lng != 0.0) {
+                    viewModel.setLocationInfo(name, lat, lng)
+                }
+            }
+        }
+    }
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST = 2001
@@ -87,6 +102,8 @@ class LocationSimulationActivity : BaseActivity() {
                     selectedRecordId = selectedRecordId,
                     onToggleSimulation = viewModel::toggleSimulation,
                     onJoystickToggle = viewModel::setJoystickEnabled,
+                    onMoveFavUp = { id -> viewModel.moveFavorite(id, up = true) },
+                    onMoveFavDown = { id -> viewModel.moveFavorite(id, up = false) },
                     onStepSimulationToggle = viewModel::setStepSimulationEnabled,
                     onStepCadenceChange = viewModel::setStepCadenceSpm,
                     onRecordSelect = viewModel::selectRecord,
@@ -174,7 +191,7 @@ class LocationSimulationActivity : BaseActivity() {
                         }
                     },
                     onAddLocation = {
-                        startActivity(Intent(this, LocationPickerActivity::class.java).apply {
+                        locationPickerLauncher.launch(Intent(this, LocationPickerActivity::class.java).apply {
                             putExtra(LocationPickerActivity.EXTRA_PICK_MODE, true)
                         })
                     },

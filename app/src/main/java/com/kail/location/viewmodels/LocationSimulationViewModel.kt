@@ -437,22 +437,18 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             val database = db
             if (database != null) {
                 try {
-                    val cursor = database.rawQuery("PRAGMA table_info(${DataBaseHistoryLocation.TABLE_NAME})", null)
-                    var hasFavoriteColumn = false
-                    while (cursor.moveToNext()) {
-                        if (cursor.getString(1) == DataBaseHistoryLocation.DB_COLUMN_FAVORITE) {
-                            hasFavoriteColumn = true
-                            break
-                        }
-                    }
-                    cursor.close()
+                    val colInfo = mutableListOf<String>()
+                    val pc = database.rawQuery("PRAGMA table_info(${DataBaseHistoryLocation.TABLE_NAME})", null)
+                    while (pc.moveToNext()) { colInfo.add(pc.getString(1)) }
+                    pc.close()
 
-                    val query = if (hasFavoriteColumn) {
-                        "SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${DataBaseHistoryLocation.DB_COLUMN_FAVORITE} DESC, ${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC"
-                    } else {
-                        "SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC"
-                    }
-                    val cursor2 = database.rawQuery(query, null)
+                    val hasFavCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE in colInfo
+                    val hasFavTimeCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE_TIME in colInfo
+
+                    val orderClauses = mutableListOf<String>()
+                    if (hasFavCol) orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_FAVORITE} DESC")
+                    orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC")
+                    val cursor2 = database.rawQuery("SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${orderClauses.joinToString(",")}", null)
                     while (cursor2.moveToNext()) {
                         val id = cursor2.getInt(0)
                         val location = cursor2.getString(1)
@@ -461,7 +457,10 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                         val timeStamp = cursor2.getInt(4).toLong()
                         val bd09Longitude = cursor2.getString(5)
                         val bd09Latitude = cursor2.getString(6)
-                        val isFav = if (hasFavoriteColumn) cursor2.getInt(7) == 1 else false
+                        val hasFavOrderCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE_ORDER in colInfo
+                        val isFav = if (hasFavCol) cursor2.getInt(7) == 1 else false
+                        val favTime = if (hasFavTimeCol) cursor2.getLong(8) else 0L
+                        val favOrder = if (hasFavOrderCol) cursor2.getInt(9) else 0
                         list.add(
                             HistoryRecord(
                                 id = id,
@@ -474,7 +473,9 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                                 displayTime = com.kail.location.utils.GoUtils.timeStamp2Date(timeStamp.toString()),
                                 displayWgs84 = "",
                                 displayBd09 = "",
-                                isFavorite = isFav
+                                isFavorite = isFav,
+                                favoriteTime = favTime,
+                                favoriteOrder = favOrder
                             )
                         )
                     }
@@ -485,6 +486,10 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
         }
     }
 
+    fun setLocationInfo(name: String, latitude: Double, longitude: Double) {
+        _locationInfo.value = LocationInfo(name = name, address = name, latitude = latitude, longitude = longitude)
+    }
+
     fun selectRecord(record: HistoryRecord) {
         _selectedRecordId.value = record.id
         _locationInfo.value = _locationInfo.value.copy(
@@ -493,6 +498,24 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             latitude = record.latitudeBd09.toDoubleOrNull() ?: 0.0,
             longitude = record.longitudeBd09.toDoubleOrNull() ?: 0.0
         )
+    }
+
+    fun moveFavorite(id: Int, up: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val favs = _historyRecords.value.filter { it.isFavorite }
+                    .sortedWith(compareBy<HistoryRecord> { it.favoriteOrder }.thenByDescending { it.favoriteTime })
+                val idx = favs.indexOfFirst { it.id == id }
+                if (idx < 0) return@launch
+                val swapIdx = if (up) idx - 1 else idx + 1
+                if (swapIdx < 0 || swapIdx >= favs.size) return@launch
+                db?.let {
+                    DataBaseHistoryLocation.updateFavoriteOrder(it, id, swapIdx)
+                    DataBaseHistoryLocation.updateFavoriteOrder(it, favs[swapIdx].id, idx)
+                }
+                loadRecords()
+            } catch (_: Exception) {}
+        }
     }
 
     fun toggleFavorite(id: Int) {

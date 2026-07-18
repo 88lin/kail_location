@@ -109,22 +109,18 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         val database = db ?: return list
 
         try {
-            val cursor = database.rawQuery("PRAGMA table_info(${DataBaseHistoryLocation.TABLE_NAME})", null)
-            var hasFavoriteColumn = false
-            while (cursor.moveToNext()) {
-                if (cursor.getString(1) == DataBaseHistoryLocation.DB_COLUMN_FAVORITE) {
-                    hasFavoriteColumn = true
-                    break
-                }
-            }
-            cursor.close()
+            val colInfo = mutableListOf<String>()
+            val pc = database.rawQuery("PRAGMA table_info(${DataBaseHistoryLocation.TABLE_NAME})", null)
+            while (pc.moveToNext()) { colInfo.add(pc.getString(1)) }
+            pc.close()
 
-            val query = if (hasFavoriteColumn) {
-                "SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${DataBaseHistoryLocation.DB_COLUMN_FAVORITE} DESC, ${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC"
-            } else {
-                "SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC"
-            }
-            val cursor2 = database.rawQuery(query, null)
+            val hasFavCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE in colInfo
+            val hasFavTimeCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE_TIME in colInfo
+
+            val orderClauses = mutableListOf<String>()
+            if (hasFavCol) orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_FAVORITE} DESC")
+            orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC")
+            val cursor2 = database.rawQuery("SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${orderClauses.joinToString(",")}", null)
             while (cursor2.moveToNext()) {
                 val id = cursor2.getInt(0)
                 val location = cursor2.getString(1)
@@ -133,7 +129,8 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                 val timeStamp = cursor2.getInt(4).toLong()
                 val bd09Longitude = cursor2.getString(5)
                 val bd09Latitude = cursor2.getString(6)
-                val isFav = if (hasFavoriteColumn) cursor2.getInt(7) == 1 else false
+                val isFav = if (hasFavCol) cursor2.getInt(7) == 1 else false
+                val favTime = if (hasFavTimeCol) cursor2.getLong(8) else 0L
 
                 val bigDecimalLongitude = BigDecimal.valueOf(longitude.toDouble())
                 val bigDecimalLatitude = BigDecimal.valueOf(latitude.toDouble())
@@ -155,7 +152,8 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
                     displayTime = GoUtils.timeStamp2Date(timeStamp.toString()),
                     displayWgs84 = String.format(getApplication<Application>().getString(R.string.history_vm_coord_wgs84), doubleLongitude, doubleLatitude),
                     displayBd09 = String.format(getApplication<Application>().getString(R.string.history_vm_coord_bd09), doubleBDLongitude, doubleBDLatitude),
-                    isFavorite = isFav
+                    isFavorite = isFav,
+                    favoriteTime = favTime
                 ))
             }
             cursor2.close()

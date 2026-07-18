@@ -31,6 +31,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,7 +80,9 @@ fun JoyStickHistoryOverlay(
     onRename: (String, String) -> Unit = { _, _ -> },
     onDelete: (String) -> Unit = {},
     isPinned: Boolean = false,
-    onTogglePin: () -> Unit = {}
+    onTogglePin: () -> Unit = {},
+    onMoveFavUp: (String) -> Unit = {},
+    onMoveFavDown: (String) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<String?>(null) }
@@ -175,37 +179,43 @@ fun JoyStickHistoryOverlay(
             }
         )
 
-            // List
-            if (filteredRecords.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.history_idle), color = Color.Gray)
+            // Tabs: 收藏 / 历史记录
+            var selectedTab by remember { mutableStateOf(0) }
+            val favRecords = filteredRecords.filter { (it["isFavorite"] as? Boolean) == true }
+                .sortedWith(compareBy<Map<String, Any>> { (it["favoriteOrder"] as? Int) ?: 0 }.thenByDescending { (it["favoriteTime"] as? Long) ?: 0L })
+
+            TabRow(selectedTabIndex = selectedTab, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.joystick_history_favorites), fontSize = 12.sp) })
+                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.joystick_history_normal), fontSize = 12.sp) })
+            }
+
+            if (selectedTab == 0) {
+                // Favorites tab
+                if (favRecords.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(stringResource(R.string.history_idle), color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp)) {
+                        items(favRecords, key = { "fav_${it[HistoryActivity.KEY_ID]}" }) { record ->
+                            val rid = (record[HistoryActivity.KEY_ID] as? String) ?: ""
+                            historyListItem(record = record, isFav = true, showMoveButtons = true, onSelectRecord = onSelectRecord, onToggleFavorite = onToggleFavorite, onRename = { id -> renameTarget = id; renameText = (record[HistoryActivity.KEY_LOCATION] as? String) ?: "" }, onDelete = onDelete, onMoveUp = { onMoveFavUp(rid) }, onMoveDown = { onMoveFavDown(rid) })
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = Color.LightGray.copy(alpha = 0.5f))
+                        }
+                    }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 4.dp)
-                ) {
-                    items(filteredRecords) { record ->
-                        val id = (record[HistoryActivity.KEY_ID] as? String) ?: ""
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable { onSelectRecord(record) }.padding(horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                HistoryItem(record = record, onClick = { onSelectRecord(record) })
-                            }
-                            val isFav = (record["isFavorite"] as? Boolean) ?: false
-                            IconButton(onClick = { onToggleFavorite(id) }) {
-                                Icon(Icons.Default.Star, contentDescription = "Favorite", tint = if (isFav) Color(0xFFFFB300) else Color.Gray, modifier = Modifier.graphicsLayer(alpha = if (isFav) 1f else 0.4f))
-                            }
-                            IconButton(onClick = { renameTarget = id; renameText = (record[HistoryActivity.KEY_LOCATION] as? String) ?: "" }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
-                            }
-                            IconButton(onClick = { onDelete(id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
-                            }
+                // History tab
+                if (filteredRecords.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(stringResource(R.string.history_idle), color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp)) {
+                        items(filteredRecords.sortedByDescending { (it["rawTimestamp"] as? Long) ?: 0L }, key = { "all_${it[HistoryActivity.KEY_ID]}" }) { record ->
+                            historyListItem(record = record, isFav = (record["isFavorite"] as? Boolean) == true, showMoveButtons = false, onSelectRecord = onSelectRecord, onToggleFavorite = onToggleFavorite, onRename = { id -> renameTarget = id; renameText = (record[HistoryActivity.KEY_LOCATION] as? String) ?: "" }, onDelete = onDelete)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = Color.LightGray.copy(alpha = 0.5f))
                         }
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = Color.LightGray.copy(alpha = 0.5f))
                     }
                 }
             }
@@ -254,6 +264,44 @@ fun JoyStickHistoryOverlay(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun historyListItem(
+    record: Map<String, Any>,
+    isFav: Boolean,
+    showMoveButtons: Boolean = false,
+    onSelectRecord: (Map<String, Any>) -> Unit,
+    onToggleFavorite: (String) -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onMoveUp: () -> Unit = {},
+    onMoveDown: () -> Unit = {}
+) {
+    val id = (record[HistoryActivity.KEY_ID] as? String) ?: ""
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onSelectRecord(record) }.padding(start = 4.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (showMoveButtons) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 6.dp)) {
+                Text("▲", modifier = Modifier.clickable(onClick = onMoveUp).padding(2.dp), fontSize = 10.sp, color = Color.Gray)
+                Text("▼", modifier = Modifier.clickable(onClick = onMoveDown).padding(2.dp), fontSize = 10.sp, color = Color.Gray)
+            }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            HistoryItem(record = record, onClick = { onSelectRecord(record) })
+        }
+        IconButton(onClick = { onToggleFavorite(id) }) {
+            Icon(Icons.Default.Star, contentDescription = "Favorite", tint = if (isFav) Color(0xFFFFB300) else Color.Gray, modifier = Modifier.graphicsLayer(alpha = if (isFav) 1f else 0.4f))
+        }
+        IconButton(onClick = { onRename(id) }) {
+            Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
+        }
+        IconButton(onClick = { onDelete(id) }) {
+            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
         }
     }
 }

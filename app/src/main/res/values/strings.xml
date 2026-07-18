@@ -101,6 +101,8 @@
     <string name="joystick_map_tips">搜索或点击地图位置</string>
     <string name="joystick_history_tips">搜索或点击历史位置</string>
     <string name="joystick_history">历史记录</string>
+    <string name="joystick_history_favorites">收藏</string>
+    <string name="joystick_history_normal">历史位置</string>
     <string name="joystick_map">地图</string>
     <string name="joystick_move">移动</string>
     <string name="joystick_walk">步行</string>

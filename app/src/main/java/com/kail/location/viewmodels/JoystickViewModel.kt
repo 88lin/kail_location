@@ -159,15 +159,20 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
                 val dbHelper = DataBaseHistoryLocation(getApplication())
                 val db = dbHelper.readableDatabase
 
-                val hasFavCol = try {
+                val colInfo = try {
                     val p = db.rawQuery("PRAGMA table_info(${DataBaseHistoryLocation.TABLE_NAME})", null)
-                    var found = false
-                    while (p.moveToNext()) { if (p.getString(1) == DataBaseHistoryLocation.DB_COLUMN_FAVORITE) { found = true; break } }
-                    p.close(); found
-                } catch (_: Exception) { false }
+                    val cols = mutableListOf<String>()
+                    while (p.moveToNext()) { cols.add(p.getString(1)) }
+                    p.close(); cols
+                } catch (_: Exception) { emptyList() }
 
-                val orderCol = if (hasFavCol) "${DataBaseHistoryLocation.DB_COLUMN_FAVORITE} DESC," else ""
-                val cursor = db.rawQuery("SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY $orderCol ${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC", null)
+                val hasFavCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE in colInfo
+                val hasFavTimeCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE_TIME in colInfo
+
+                val orderClauses = mutableListOf<String>()
+                if (hasFavCol) orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_FAVORITE} DESC")
+                orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC")
+                val cursor = db.rawQuery("SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${orderClauses.joinToString(",")}", null)
 
                 while (cursor.moveToNext()) {
                     val item = mutableMapOf<String, Any>()
@@ -178,7 +183,10 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
                     val timestamp = cursor.getLong(4)
                     val bdLng = cursor.getString(5)
                     val bdLat = cursor.getString(6)
+                    val hasFavOrderCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE_ORDER in colInfo
                     val isFav = if (hasFavCol) cursor.getInt(7) == 1 else false
+                    val favTime = if (hasFavTimeCol) cursor.getLong(8) else 0L
+                    val favOrder = if (hasFavOrderCol) cursor.getInt(9) else 0
 
                     val doubleLng = BigDecimal(lng).setScale(11, RoundingMode.HALF_UP).toDouble()
                     val doubleLat = BigDecimal(lat).setScale(11, RoundingMode.HALF_UP).toDouble()
@@ -188,9 +196,12 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
                     item[HistoryActivity.KEY_ID] = id.toString()
                     item[HistoryActivity.KEY_LOCATION] = location
                     item[HistoryActivity.KEY_TIME] = GoUtils.timeStamp2Date(timestamp.toString())
+                    item["rawTimestamp"] = timestamp
                     item[HistoryActivity.KEY_LNG_LAT_WGS] = String.format(getApplication<Application>().getString(R.string.history_vm_coord_wgs84), doubleLng, doubleLat)
                     item[HistoryActivity.KEY_LNG_LAT_CUSTOM] = String.format(getApplication<Application>().getString(R.string.history_vm_coord_bd09), doubleBdLng, doubleBdLat)
                     item["isFavorite"] = isFav
+                    item["favoriteTime"] = favTime
+                    item["favoriteOrder"] = favOrder
                     records.add(item)
                 }
                 cursor.close()
@@ -242,6 +253,27 @@ class JoystickViewModel(application: Application) : AndroidViewModel(application
             }
         } catch (e: Exception) {
             KailLog.e(getApplication(), "JOYSTICK", "Error selecting history: ${e.message}")
+        }
+    }
+
+    fun moveFavorite(id: String, up: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val favs = _historyRecords.value.filter { (it["isFavorite"] as? Boolean) == true }
+                    .sortedByDescending { (it["favoriteTime"] as? Long) ?: 0L }
+                val idx = favs.indexOfFirst { it[HistoryActivity.KEY_ID] == id }
+                if (idx < 0) return@launch
+                val swapIdx = if (up) idx - 1 else idx + 1
+                if (swapIdx < 0 || swapIdx >= favs.size) return@launch
+                val dbHelper = DataBaseHistoryLocation(getApplication())
+                val db = dbHelper.writableDatabase
+                DataBaseHistoryLocation.updateFavoriteOrder(db, id.toIntOrNull() ?: return@launch, swapIdx)
+                DataBaseHistoryLocation.updateFavoriteOrder(db, favs[swapIdx][HistoryActivity.KEY_ID].toString().toIntOrNull() ?: return@launch, idx)
+                db.close()
+                DataBaseHistoryLocation.notifyChanged()
+            } catch (e: Exception) {
+                KailLog.e(getApplication(), "JOYSTICK", "Error moving favorite: ${e.message}")
+            }
         }
     }
 

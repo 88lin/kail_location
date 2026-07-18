@@ -83,7 +83,9 @@ fun LocationSimulationScreen(
     onNavigate: (Int) -> Unit,
     onAddLocation: () -> Unit,
     appVersion: String,
-    onCheckUpdate: () -> Unit
+    onCheckUpdate: () -> Unit,
+    onMoveFavUp: (Int) -> Unit = {},
+    onMoveFavDown: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     var renameTarget by remember { mutableStateOf<HistoryRecord?>(null) }
@@ -344,44 +346,31 @@ fun LocationSimulationScreen(
                         }
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(historyRecords) { record ->
-                            Card(
-                                colors = CardDefaults.cardColors(),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth().clickable { onRecordSelect(record) }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(text = record.name, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                                        Text(text = record.displayTime, fontSize = 12.sp, color = Color.Gray)
-                                    }
-                                    Row {
-                                        IconButton(onClick = { onToggleFavorite(record.id) }) {
-                                            Icon(
-                                                Icons.Default.Star,
-                                                contentDescription = "Favorite",
-                                                tint = if (record.isFavorite) Color(0xFFFFB300) else Color.Gray,
-                                                modifier = Modifier.graphicsLayer(alpha = if (record.isFavorite) 1f else 0.4f)
-                                            )
-                                        }
-                                        IconButton(onClick = { renameTarget = record; renameText = record.name }) {
-                                            Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                        IconButton(onClick = { onRecordDelete(record.id) }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
-                                        }
-                                    }
+                    val favRecords = historyRecords.filter { it.isFavorite }
+                        .sortedWith(compareBy<com.kail.location.models.HistoryRecord> { it.favoriteOrder }.thenByDescending { it.favoriteTime })
+                    var selectedTab by remember { mutableStateOf(0) }
+
+                    TabRow(selectedTabIndex = selectedTab, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.joystick_history_favorites), fontSize = 14.sp) })
+                        Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.joystick_history_normal), fontSize = 14.sp) })
+                    }
+
+                    if (selectedTab == 0) {
+                        if (favRecords.isEmpty()) {
+                            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Text(stringResource(R.string.history_idle), color = Color.Gray)
+                            }
+                        } else {
+                            LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                                items(favRecords, key = { "fav_${it.id}" }) { record ->
+                                    historyRecordCard(record = record, isFav = true, showMoveButtons = true, onToggleFavorite = onToggleFavorite, onRename = { renameTarget = it; renameText = it.name }, onRecordSelect = onRecordSelect, onRecordDelete = onRecordDelete, onMoveUp = { onMoveFavUp(record.id) }, onMoveDown = { onMoveFavDown(record.id) })
                                 }
+                            }
+                        }
+                    } else {
+                        LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                            items(historyRecords.sortedByDescending { it.timestamp }, key = { "all_${it.id}" }) { record ->
+                                historyRecordCard(record = record, isFav = record.isFavorite, showMoveButtons = false, onToggleFavorite = onToggleFavorite, onRename = { renameTarget = it; renameText = it.name }, onRecordSelect = onRecordSelect, onRecordDelete = onRecordDelete)
                             }
                         }
                     }
@@ -415,5 +404,58 @@ fun LocationSimulationScreen(
                 TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
+    }
+}
+
+@Composable
+fun historyRecordCard(
+    record: com.kail.location.models.HistoryRecord,
+    isFav: Boolean,
+    showMoveButtons: Boolean = false,
+    onToggleFavorite: (Int) -> Unit,
+    onRename: (com.kail.location.models.HistoryRecord) -> Unit,
+    onRecordSelect: (com.kail.location.models.HistoryRecord) -> Unit,
+    onRecordDelete: (Int) -> Unit,
+    onMoveUp: () -> Unit = {},
+    onMoveDown: () -> Unit = {}
+) {
+    Card(
+        colors = CardDefaults.cardColors(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onRecordSelect(record) }
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            if (showMoveButtons) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 8.dp)) {
+                    Text("▲", modifier = Modifier.clickable(onClick = onMoveUp).padding(2.dp), fontSize = 12.sp, color = Color.Gray)
+                    Text("▼", modifier = Modifier.clickable(onClick = onMoveDown).padding(2.dp), fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = record.name, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = record.displayTime, fontSize = 12.sp, color = Color.Gray)
+            }
+            Row {
+                IconButton(onClick = { onToggleFavorite(record.id) }) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = "Favorite",
+                        tint = if (isFav) Color(0xFFFFB300) else Color.Gray,
+                        modifier = Modifier.graphicsLayer(alpha = if (isFav) 1f else 0.4f)
+                    )
+                }
+                IconButton(onClick = { onRename(record) }) {
+                    Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = { onRecordDelete(record.id) }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                }
+            }
+        }
     }
 }

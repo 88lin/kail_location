@@ -93,6 +93,8 @@
     <string name="joystick_map_tips">Search or tap map location</string>
     <string name="joystick_history_tips">Search or tap history location</string>
     <string name="joystick_history">History</string>
+    <string name="joystick_history_favorites">Favorites</string>
+    <string name="joystick_history_normal">History</string>
     <string name="joystick_map">Map</string>
     <string name="joystick_move">Move</string>
     <string name="joystick_walk">Walk</string>

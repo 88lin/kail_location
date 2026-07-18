@@ -25,5 +25,7 @@ data class HistoryRecord(
     val displayTime: String,
     val displayWgs84: String,
     val displayBd09: String,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val favoriteTime: Long = 0L,
+    val favoriteOrder: Int = 0
 )
