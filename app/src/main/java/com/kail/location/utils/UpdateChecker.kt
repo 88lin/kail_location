@@ -55,7 +55,14 @@ object UpdateChecker {
                     if (assets == null || assets.length() == 0) {
                         callback(null, null); return
                     }
-                    val asset = assets.getJSONObject(0)
+                    var asset: org.json.JSONObject? = null
+                    for (i in 0 until assets.length()) {
+                        val a = assets.getJSONObject(i)
+                        if (a.optString("name", "").contains("KailLocation.apk")) {
+                            asset = a; break
+                        }
+                    }
+                    if (asset == null) asset = assets.getJSONObject(0)
                     val downloadUrl = asset.optString("browser_download_url", "")
                     val filename = asset.optString("name", "")
 
