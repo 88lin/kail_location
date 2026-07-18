@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -47,6 +48,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.baidu.mapapi.map.BitmapDescriptorFactory
 import com.baidu.mapapi.map.MarkerOptions
+import com.kail.location.models.RouteInfo
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,6 +81,10 @@ fun NavigationSimulationScreen(
     // Speed Settings State
     var showSpeedDialog by remember { mutableStateOf(false) }
     var speedStr by remember { mutableStateOf("60") }
+
+    // Rename State
+    var renameTarget by remember { mutableStateOf<RouteInfo?>(null) }
+    var renameText by remember { mutableStateOf("") }
 
     // Map Selection State
     var pickingType by remember { mutableStateOf("none") } // "start" or "end"
@@ -145,6 +151,25 @@ fun NavigationSimulationScreen(
                 TextButton(onClick = { showSpeedDialog = false }) {
                     Text(stringResource(R.string.nav_sim_cancel))
                 }
+            }
+        )
+    }
+
+    if (renameTarget != null) {
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text(stringResource(R.string.route_sim_rename_title)) },
+            text = {
+                OutlinedTextField(value = renameText, onValueChange = { renameText = it })
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.renameHistory(renameTarget!!.id.toLongOrNull() ?: return@TextButton, renameText)
+                    renameTarget = null
+                }) { Text(stringResource(R.string.route_sim_rename_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.route_sim_rename_cancel)) }
             }
         )
     }
@@ -329,57 +354,83 @@ fun NavigationSimulationScreen(
                         }
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    var selectedTab by remember { mutableStateOf(0) }
+                    val favOrders by viewModel.favOrders.collectAsState()
+                    val favRoutes = historyList.filter { it.isFavorite }
+                        .sortedBy { it.id.toLongOrNull()?.let { id -> favOrders[id] ?: Int.MAX_VALUE } ?: Int.MAX_VALUE }
+                    val allRoutes = historyList
+
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                     ) {
-                        Text(
-                            text = stringResource(R.string.nav_sim_history_title),
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text(stringResource(R.string.joystick_history_favorites), fontSize = 14.sp) }
                         )
-                        OutlinedButton(
-                            onClick = { viewModel.clearHistory() },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Text(stringResource(R.string.nav_sim_clear), fontSize = 12.sp, color = Color.Red)
-                        }
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text(stringResource(R.string.joystick_history_normal), fontSize = 14.sp) }
+                        )
                     }
 
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        items(historyList) { route ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clickable { viewModel.selectHistoryRoute(route) },
-                                shape = RoundedCornerShape(8.dp)
+                    if (selectedTab == 0) {
+                        if (favRoutes.isEmpty()) {
+                            Box(
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(start = 16.dp, end = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "${route.startName} -> ${route.endName}",
-                                        modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodyMedium
+                                Text(stringResource(R.string.history_idle), color = Color.Gray)
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                items(favRoutes, key = { "fav_${it.id}" }) { route ->
+                                    NavigationHistoryCard(
+                                        route = route,
+                                        isFav = true,
+                                        showMoveButtons = true,
+                                        onSelect = { viewModel.selectHistoryRoute(route) },
+                                        onToggleFavorite = {
+                                            route.id.toLongOrNull()?.let { viewModel.toggleFavorite(it) }
+                                        },
+                                        onRename = { renameTarget = route; renameText = route.startName },
+                                        onDelete = { route.id.toLongOrNull()?.let { viewModel.deleteHistory(it) } },
+                                        onMoveUp = { route.id.toLongOrNull()?.let { viewModel.moveFavoriteUp(it) } },
+                                        onMoveDown = { route.id.toLongOrNull()?.let { viewModel.moveFavoriteDown(it) } }
                                     )
-                                    IconButton(onClick = { viewModel.toggleFavorite(route.id.toLongOrNull() ?: return@IconButton) }) {
-                                        Icon(
-                                            Icons.Default.Star,
-                                            contentDescription = "Favorite",
-                                            tint = if (route.isFavorite) Color(0xFFFFB300) else Color.Gray,
-                                            modifier = Modifier.graphicsLayer(alpha = if (route.isFavorite) 1f else 0.4f)
-                                        )
-                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        if (allRoutes.isEmpty()) {
+                            Box(
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(stringResource(R.string.history_idle), color = Color.Gray)
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                items(allRoutes, key = { "all_${it.id}" }) { route ->
+                                    NavigationHistoryCard(
+                                        route = route,
+                                        isFav = route.isFavorite,
+                                        showMoveButtons = false,
+                                        onSelect = { viewModel.selectHistoryRoute(route) },
+                                        onToggleFavorite = {
+                                            route.id.toLongOrNull()?.let { viewModel.toggleFavorite(it) }
+                                        },
+                                        onRename = { renameTarget = route; renameText = route.startName },
+                                        onDelete = { route.id.toLongOrNull()?.let { viewModel.deleteHistory(it) } }
+                                    )
                                 }
                             }
                         }
@@ -464,6 +515,61 @@ fun NavigationSimulationScreen(
                 }
 
 
+            }
+        }
+    }
+}
+
+@Composable
+fun NavigationHistoryCard(
+    route: RouteInfo,
+    isFav: Boolean,
+    showMoveButtons: Boolean = false,
+    onSelect: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onRename: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onMoveUp: () -> Unit = {},
+    onMoveDown: () -> Unit = {}
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onSelect() },
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (showMoveButtons) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(end = 4.dp)
+                ) {
+                    Text("▲", modifier = Modifier.clickable(onClick = onMoveUp).padding(2.dp), fontSize = 12.sp, color = Color.Gray)
+                    Text("▼", modifier = Modifier.clickable(onClick = onMoveDown).padding(2.dp), fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+            Text(
+                text = "${route.startName} -> ${route.endName}",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            IconButton(onClick = onRename) {
+                Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+            }
+            IconButton(onClick = onToggleFavorite) {
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = "Favorite",
+                    tint = if (isFav) Color(0xFFFFB300) else Color.Gray,
+                    modifier = Modifier.graphicsLayer(alpha = if (isFav) 1f else 0.4f)
+                )
             }
         }
     }
