@@ -51,7 +51,7 @@ class FaqViewModel(application: Application) : AndroidViewModel(application) {
         error = null
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                Result.success<List<FaqItem>>(emptyList()) // 本地版：已禁用在线 FAQ
+                Result.success<List<RuoYiClient.FaqItem>>(emptyList()) // 本地版：已禁用在线 FAQ
             }
             result.fold(
                 onSuccess = { list ->

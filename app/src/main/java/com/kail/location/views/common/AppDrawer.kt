@@ -48,17 +48,7 @@ fun AppDrawer(
     var envMessage by remember { mutableStateOf("") }
     val context = LocalContext.current
 
-    if (showLoginActivity) {
-        val intent = Intent(context, com.kail.location.views.auth.LoginActivity::class.java)
-        context.startActivity(intent)
-        showLoginActivity = false
-    }
 
-    if (showProfileActivity) {
-        val intent = Intent(context, com.kail.location.views.auth.ProfileActivity::class.java)
-        context.startActivity(intent)
-        showProfileActivity = false
-    }
 
     fun getXposedModuleVersionCode(): Int? {
         val pm = context.packageManager
