@@ -8,7 +8,6 @@ import androidx.preference.PreferenceManager
 import com.baidu.location.LocationClient
 import com.baidu.mapapi.CoordType
 import com.baidu.mapapi.SDKInitializer
-import com.google.firebase.FirebaseApp
 import com.kail.location.R
 import com.kail.location.auth.AuthManager
 import com.kail.location.auth.UsageManager
@@ -108,7 +107,6 @@ class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
         }
 
         PreferenceManager.setDefaultValues(this, R.xml.preferences_main, false)
-        FirebaseApp.initializeApp(this)
 
         AuthManager.init(this)
         UsageManager.init(this)

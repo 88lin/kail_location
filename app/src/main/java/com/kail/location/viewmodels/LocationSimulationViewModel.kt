@@ -381,12 +381,7 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
     }
 
     fun checkAnnouncement() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val dismissedKeys = readDismissedNoticeKeys()
-            RuoYiClient.getNoticeList().onSuccess { list ->
-                _noticeList.value = list.filter { noticeKey(it) !in dismissedKeys }
-            }
-        }
+        // 本地版：已禁用公告
     }
 
     fun dismissNotice() {

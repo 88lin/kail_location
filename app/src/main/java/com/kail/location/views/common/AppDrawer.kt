@@ -45,8 +45,6 @@ fun AppDrawer(
     var showEnvDialog by remember { mutableStateOf(false) }
     var showXposedDownloadDialog by remember { mutableStateOf(false) }
     var showXposedVersionDialog by remember { mutableStateOf(false) }
-    var showLoginActivity by remember { mutableStateOf(false) }
-    var showProfileActivity by remember { mutableStateOf(false) }
     var envMessage by remember { mutableStateOf("") }
     val context = LocalContext.current
 
@@ -328,7 +326,7 @@ fun AppDrawer(
 
     ModalDrawerSheet {
         LazyColumn {
-            item { DrawerHeader(appVersion, onLoginClick = { showLoginActivity = true }, onProfileClick = { showProfileActivity = true }) }
+            item { DrawerHeader(appVersion) }
             item { HorizontalDivider() }
 
             // ===== Group: 模拟 =====
@@ -469,48 +467,6 @@ fun AppDrawer(
                 )
             }
 
-            item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
-
-            // ===== Group: 更多 =====
-            item {
-                Text(
-                    text = stringResource(R.string.nav_menu_more),
-                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
-                    style = MaterialTheme.typography.labelSmall
-                )
-            }
-            item {
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_contact)) },
-                    icon = { Icon(painterResource(R.drawable.ic_contact), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_contact) } }
-                )
-            }
-            item {
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_sponsor)) },
-                    icon = { Icon(painterResource(R.drawable.ic_user), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_sponsor) } }
-                )
-            }
-            item {
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_github)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_source_code) } }
-                )
-            }
-            item {
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.nav_menu_faq)) },
-                    icon = { Icon(painterResource(R.drawable.ic_menu_feedback), contentDescription = null) },
-                    selected = false,
-                    onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_faq) } }
-                )
-            }
         }
     }
 }

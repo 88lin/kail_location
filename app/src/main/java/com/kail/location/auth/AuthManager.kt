@@ -20,9 +20,9 @@ object AuthManager {
 
     private lateinit var prefs: SharedPreferences
 
-    private val _isLoggedIn = mutableStateOf(false)
+    private val _isLoggedIn = mutableStateOf(true)
     private val _email = mutableStateOf("")
-    private val _isSubscribed = mutableStateOf(false)
+    private val _isSubscribed = mutableStateOf(true)
 
     val isLoggedIn: Boolean get() = _isLoggedIn.value
     val email: String get() = _email.value
@@ -41,9 +41,9 @@ object AuthManager {
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        _isLoggedIn.value = prefs.getBoolean(KEY_IS_LOGGED_IN, false)
+        _isLoggedIn.value = true // 解锁：始终视为已登录
         _email.value = prefs.getString(KEY_EMAIL, "") ?: ""
-        _isSubscribed.value = prefs.getBoolean(KEY_SUBSCRIBED, false)
+        _isSubscribed.value = true // 解锁：始终视为已订阅
         isSubscriptionActive()
     }
 

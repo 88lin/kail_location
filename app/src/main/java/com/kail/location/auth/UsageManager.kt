@@ -1,8 +1,6 @@
 package com.kail.location.auth
 
 import android.content.Context
-import com.kail.location.R
-import com.kail.location.network.RuoYiClient
 import com.kail.location.utils.KailLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -38,80 +36,16 @@ object UsageManager {
      * Check if user can start simulation (does NOT consume a count)
      */
     suspend fun canStartSimulation(context: Context): Boolean {
-        if (!AuthManager.isLoggedIn) {
-            KailLog.i(context, TAG, "canStartSimulation=false: not logged in")
-            withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(context, context.getString(R.string.usage_not_logged_in), android.widget.Toast.LENGTH_SHORT).show()
-            }
-            return false
-        }
-
-        refreshSubscription()
-        if (AuthManager.isSubscriptionActive()) {
-            KailLog.i(context, TAG, "canStartSimulation=true: subscribed")
-            return true
-        }
-
-        val token = AuthManager.token ?: return false
-        val result = withContext(Dispatchers.IO) {
-            RuoYiClient.checkSimulation(token)
-        }
-
-        return if (result.isSuccess) {
-            val remaining = result.getOrThrow()
-            KailLog.i(context, TAG, "canStartSimulation: remaining free count=$remaining")
-            if (remaining == -1) {
-                // -1 表示无限次数（服务端补偿开关开启时）
-                KailLog.i(context, TAG, "canStartSimulation=true: unlimited")
-                true
-            } else if (remaining <= 0) {
-                withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, context.getString(R.string.usage_free_exhausted), android.widget.Toast.LENGTH_SHORT).show()
-                }
-                false
-            } else {
-                true
-            }
-        } else {
-            KailLog.w(context, TAG, "canStartSimulation: check failed: ${result.exceptionOrNull()?.message}")
-            withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(context, context.getString(R.string.usage_free_exhausted), android.widget.Toast.LENGTH_SHORT).show()
-            }
-            false
-        }
+        return true
     }
 
     private suspend fun refreshSubscription() {
-        val token = AuthManager.token ?: return
-        val result = withContext(Dispatchers.IO) {
-            RuoYiClient.getSubscriptionStatus(token)
-        }
-        result.onSuccess { status ->
-            AuthManager.updateSubscription(status.active, status.expiresAt)
-        }
     }
 
     /**
      * Consume one simulation count. Call this when user actually starts simulating.
      */
     suspend fun consumeSimulation(context: Context): Boolean {
-        if (!AuthManager.isLoggedIn) return false
-        if (AuthManager.isSubscriptionActive()) return true
-
-        val token = AuthManager.token ?: return false
-        val result = withContext(Dispatchers.IO) {
-            RuoYiClient.useSimulation(token)
-        }
-
-        return if (result.isSuccess) {
-            KailLog.i(context, TAG, "consumeSimulation: consumed one count")
-            true
-        } else {
-            KailLog.w(context, TAG, "consumeSimulation failed: ${result.exceptionOrNull()?.message}")
-            withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(context, context.getString(R.string.usage_count_exhausted), android.widget.Toast.LENGTH_SHORT).show()
-            }
-            false
-        }
+        return true
     }
 }

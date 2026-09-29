@@ -96,28 +96,6 @@ class SandboxActivity : BaseActivity() {
                             R.id.nav_settings -> {
                                 startActivity(Intent(this, com.kail.location.views.settings.SettingsActivity::class.java))
                             }
-                            R.id.nav_sponsor -> {
-                                startActivity(Intent(this, com.kail.location.views.sponsor.SponsorActivity::class.java))
-                            }
-                            R.id.nav_contact -> {
-                                try {
-                                    val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                        data = android.net.Uri.parse("mailto:kailkali23143@gmail.com")
-                                        putExtra(Intent.EXTRA_SUBJECT, getString(R.string.nav_menu_contact))
-                                    }
-                                    startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(this, getString(R.string.error_cannot_open_email), Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                            R.id.nav_source_code -> {
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/noellegazelle6/kail_location"))
-                                    startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(this, getString(R.string.error_cannot_open_browser), Toast.LENGTH_SHORT).show()
-                                }
-                            }
                             else -> {
                                 Toast.makeText(this, getString(R.string.error_under_development), Toast.LENGTH_SHORT).show()
                             }

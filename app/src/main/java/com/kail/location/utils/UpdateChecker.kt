@@ -19,7 +19,8 @@ object UpdateChecker {
     private val okHttpClient get() = RuoYiClient.okHttpClient
 
     fun check(context: Context, callback: (UpdateInfo?, String?) -> Unit) {
-        checkYudao(context, callback)
+        // 本地版：已禁用更新检查
+        callback(null, null)
     }
 
     /**

@@ -302,27 +302,6 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
                             R.id.nav_settings -> startActivity(Intent(this, SettingsActivity::class.java))
                             R.id.nav_sandbox -> startActivity(Intent(this, com.kail.location.views.sandbox.SandboxActivity::class.java))
 
-                            R.id.nav_sponsor -> startActivity(Intent(this, com.kail.location.views.sponsor.SponsorActivity::class.java))
-                            R.id.nav_faq -> startActivity(Intent(this, com.kail.location.views.faq.FaqActivity::class.java))
-                            R.id.nav_contact -> {
-                                try {
-                                    val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                        data = android.net.Uri.parse("mailto:kailkali23143@gmail.com")
-                                        putExtra(Intent.EXTRA_SUBJECT, getString(R.string.nav_menu_contact))
-                                    }
-                                    startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(this, getString(R.string.error_cannot_open_email), Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                            R.id.nav_source_code -> {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/noellegazelle6/kail_location"))
-                                startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(this, getString(R.string.error_cannot_open_browser), Toast.LENGTH_SHORT).show()
-                            }
-                        }
                         }
                             // TODO: Add other navigation items
                     },
@@ -763,68 +742,7 @@ class LocationPickerActivity : BaseActivity(), SensorEventListener {
 
     /*============================== Update 相关 ==============================*/
     private fun checkUpdate(isAuto: Boolean) {
-        val request = Request.Builder()
-            .url("https://api.github.com/repos/noellegazelle6/kail_location/releases/latest")
-            .build()
-        val call = mOkHttpClient.newCall(request)
-        call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                if (!isAuto) {
-                    runOnUiThread {
-                        GoUtils.DisplayToast(this@LocationPickerActivity, getString(R.string.vm_update_failed, ""))
-                    }
-                }
-            }
-
-            @Throws(IOException::class)
-            override fun onResponse(call: Call, response: Response) {
-                val res = response.body?.string() ?: return
-                try {
-                    val jsonObject = JSONObject(res)
-                    val tag_name = jsonObject.getString("tag_name")
-                    val body = jsonObject.getString("body")
-                    val assets = jsonObject.getJSONArray("assets")
-                    if (assets.length() > 0) {
-                        val asset = assets.getJSONObject(0)
-                        val browser_download_url = asset.getString("browser_download_url")
-                        mUpdateFilename = asset.getString("name")
-
-                        val version_new = try {
-                            tag_name.replace(Regex("[^0-9]"), "").toInt()
-                        } catch (e: Exception) {
-                            0
-                        }
-                        val localVersionName = GoUtils.getVersionName(this@LocationPickerActivity)
-                        val version_old = try {
-                            localVersionName.replace(Regex("[^0-9]"), "").toInt()
-                        } catch (e: Exception) {
-                            0
-                        }
-
-                        if (version_new > version_old) {
-                            runOnUiThread {
-                                viewModel.setUpdateInfo(
-                                    LocationPickerViewModel.UpdateInfo(
-                                        version = tag_name,
-                                        content = body,
-                                        downloadUrl = browser_download_url,
-                                        filename = asset.getString("name")
-                                    )
-                                )
-                            }
-                        } else {
-                            if (!isAuto) {
-                                runOnUiThread {
-                                    GoUtils.DisplayToast(this@LocationPickerActivity, getString(R.string.vm_up_to_date))
-                                }
-                            }
-                        }
-                    }
-                } catch (e: JSONException) {
-                    e.printStackTrace()
-                }
-            }
-        })
+        // 本地版：已禁用更新检查
     }
 
     private fun downloadApk(url: String) {

@@ -78,7 +78,6 @@ class NfcSimulationActivity : BaseActivity() {
                 R.id.nav_settings -> Intent(this, com.kail.location.views.settings.SettingsActivity::class.java)
                 R.id.nav_navigation_simulation -> Intent(this, com.kail.location.views.navigationsimulation.NavigationSimulationActivity::class.java)
                 R.id.nav_nfc_simulation -> null
-                R.id.nav_sponsor -> Intent(this, com.kail.location.views.sponsor.SponsorActivity::class.java)
                 else -> null
             }
             
@@ -88,23 +87,6 @@ class NfcSimulationActivity : BaseActivity() {
                         startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
                     } catch (e: Exception) {
                         Toast.makeText(this, getString(R.string.app_error_dev), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                R.id.nav_contact -> {
-                    try {
-                        startActivity(Intent(Intent.ACTION_SENDTO).apply {
-                            data = android.net.Uri.parse("mailto:kailkali23143@gmail.com")
-                            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.nav_menu_contact))
-                        })
-                    } catch (e: Exception) {
-                        Toast.makeText(this, getString(R.string.error_cannot_open_email), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                R.id.nav_source_code -> {
-                    try {
-                        startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/noellegazelle6/kail_location")))
-                    } catch (e: Exception) {
-                        Toast.makeText(this, getString(R.string.error_cannot_open_browser), Toast.LENGTH_SHORT).show()
                     }
                 }
                 else -> {

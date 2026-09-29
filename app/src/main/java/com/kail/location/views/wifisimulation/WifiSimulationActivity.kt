@@ -78,26 +78,6 @@ class WifiSimulationActivity : BaseActivity() {
                 R.id.nav_settings -> {
                     startActivity(Intent(this, SettingsActivity::class.java))
                 }
-                R.id.nav_sponsor -> {
-                    startActivity(Intent(this, com.kail.location.views.sponsor.SponsorActivity::class.java))
-                }
-                R.id.nav_contact -> {
-                    try {
-                        startActivity(Intent(Intent.ACTION_SENDTO).apply {
-                            data = android.net.Uri.parse("mailto:kailkali23143@gmail.com")
-                            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.nav_menu_contact))
-                        })
-                    } catch (_: Exception) {
-                        Toast.makeText(this, getString(R.string.error_cannot_open_email), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                R.id.nav_source_code -> {
-                    try {
-                        startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/noellegazelle6/kail_location")))
-                    } catch (_: Exception) {
-                        Toast.makeText(this, getString(R.string.error_cannot_open_browser), Toast.LENGTH_SHORT).show()
-                    }
-                }
                 R.id.nav_dev -> {
                     try {
                         startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
